@@ -38,7 +38,7 @@ AppPacket encode_cauth(std::uint32_t class_mask, std::uint32_t spawn_id, std::ui
 // The patch replaces the first 8 bytes of OP_World_Client_CRC1 (0x0f13) with the first network adapter's MAC and of
 // CRC2 (0x4b8d) with the C:\ volume serial and 0, or, when its VM probe says VM, with 999999999999 and 99999999.
 // This client never reads or sends real hardware identifiers: `Fixed` sends the patch's VM values, `None` leaves
-// the packets as the stock client builds them (nms-client.ini nms.hardware_id = fixed | none).
+// the packets as the stock client builds them (hailstone.ini nms.hardware_id = fixed | none).
 enum class HardwareIdMode : std::uint8_t { Fixed, None };
 inline constexpr std::uint64_t kVmMac = 999999999999ull;
 inline constexpr std::uint64_t kVmVolumeSerial = 99999999ull;

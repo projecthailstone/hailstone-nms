@@ -39,7 +39,7 @@ struct NmsOptions {
     // large-address aware, as the shipped eqgame.exe (LAA) under the shipped DLL reports when started directly.
     std::uint32_t report_flags = kReportLargeAddress;
 };
-// nms-client.ini: nms.auth_key, nms.hardware_id = fixed (default) | none.
+// hailstone.ini: nms.auth_key, nms.hardware_id = fixed (default) | none.
 NmsOptions read_options(const Config& config);
 
 // The NMS loot window's place (/nmsloot).
