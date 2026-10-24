@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/server_profile.h"
 #include "game/server_ext.h"
 #include "net/item_packets.h"
 #include "plugins/nms/nms_packets.h"
@@ -24,6 +25,7 @@
 #include "plugins/nms/nms_waypoints.h"
 
 namespace nmsc { class Config; }
+namespace nmsc::net { struct ConnectionOptions; }
 
 namespace nmsc::nms {
 
@@ -41,6 +43,12 @@ struct NmsOptions {
 };
 // hailstone.ini: nms.auth_key, nms.hardware_id = fixed (default) | none.
 NmsOptions read_options(const Config& config);
+// The same with a saved server's own [NMS] auth_key and hardware_id (core/server_profile.h) over the global keys.
+NmsOptions read_options(const Config& config, const ServerProfile& profile);
+// A connection's server module from a saved server's module setting: auto hands it the NMS extension, on once the
+// connection detects an NMS server (today's behaviour); nms the same, on from the start (force_extension); none no
+// extension, the stock client throughout.
+void set_server_module(net::ConnectionOptions& options, ServerModule module, const NmsOptions& nms);
 
 // The NMS loot window's place (/nmsloot).
 struct LootWindowState {

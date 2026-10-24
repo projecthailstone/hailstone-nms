@@ -25,17 +25,41 @@ using net::ConnectionState;
 using net::GameConnection;
 using net::Op;
 
+namespace {
+
+void read_auth_key(NmsOptions& o, const std::string& key) {
+    o.auth_key = static_cast<std::uint32_t>(std::strtoul(key.c_str(), nullptr, 10));
+}
+
+// nms.hardware_id = fixed (default: the NMS patch's VM values in the login CRCs) | none (the stock CRCs).
+// Real hardware identifiers are never read or sent (plugins/nms/nms_packets.h).
+void read_hardware_id(NmsOptions& o, const std::string& hw) {
+    if (auto mode = parse_hardware_id_mode(hw)) o.hardware_id = *mode;
+    else log::warn("nms.hardware_id: unknown value '{}' (fixed | none); using fixed", hw);
+}
+
+} // namespace
+
 NmsOptions read_options(const Config& config) {
     NmsOptions o;
-    if (auto key = config.get("nms.auth_key"))
-        o.auth_key = static_cast<std::uint32_t>(std::strtoul(key->c_str(), nullptr, 10));
-    // nms.hardware_id = fixed (default: the NMS patch's VM values in the login CRCs) | none (the stock CRCs).
-    // Real hardware identifiers are never read or sent (plugins/nms/nms_packets.h).
-    if (auto hw = config.get("nms.hardware_id")) {
-        if (auto mode = parse_hardware_id_mode(*hw)) o.hardware_id = *mode;
-        else log::warn("nms.hardware_id: unknown value '{}' (fixed | none); using fixed", *hw);
-    }
+    if (auto key = config.get("nms.auth_key")) read_auth_key(o, *key);
+    if (auto hw = config.get("nms.hardware_id")) read_hardware_id(o, *hw);
     return o;
+}
+
+NmsOptions read_options(const Config& config, const ServerProfile& profile) {
+    NmsOptions o = read_options(config);
+    if (!profile.nms_auth_key.empty()) read_auth_key(o, profile.nms_auth_key);
+    if (!profile.nms_hardware_id.empty()) read_hardware_id(o, profile.nms_hardware_id);
+    return o;
+}
+
+void set_server_module(net::ConnectionOptions& options, ServerModule module, const NmsOptions& nms) {
+    options.extension.reset();
+    options.force_extension = false;
+    if (module == ServerModule::None) return;
+    options.extension = std::make_shared<NmsExtension>(nms);
+    options.force_extension = module == ServerModule::Nms;
 }
 
 // ---------------------------------------------------------------- classes
