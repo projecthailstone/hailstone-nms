@@ -217,4 +217,39 @@ void DisciplineTimers::set(std::int32_t id, std::uint32_t ready) {
     timers_.emplace_back(id, ready);
 }
 
+// FUN_100ecf40.
+void Cooldowns::set(std::size_t slot, float seconds, std::uint32_t now_ms) {
+    if (slot >= seconds_.size()) return;
+    if (seconds > 0.0f) {
+        seconds_[slot] = seconds;
+        set_at_[slot] = now_ms;
+        if (longest_[slot] < seconds) longest_[slot] = seconds;
+    } else {
+        seconds_[slot] = 0.0f;
+    }
+}
+
+// The 0x1339 case of the HandleWorldMessage detour (u32 values converted as unsigned).
+void Cooldowns::on_skill_timers(const SkillTimers& t, std::uint32_t now_ms) {
+    autoskill_ = t.autoskill;
+    const float kick = static_cast<float>(t.kick), strike = static_cast<float>(t.strike);
+    set(0, static_cast<float>(t.backstab), now_ms);
+    set(1, static_cast<float>(t.bash), now_ms);
+    set(2, kick, now_ms);
+    set(3, static_cast<float>(t.frenzy), now_ms);
+    set(7, kick, now_ms);
+    set(8, kick, now_ms);
+    set(5, strike, now_ms);
+    set(6, strike, now_ms);
+    set(9, strike, now_ms);
+}
+
+// FUN_1000a960's countdown: (GetTickCount - set) as unsigned / 1000, subtracted, clamped at 0.
+float Cooldowns::remaining(std::size_t slot, std::uint32_t now_ms) const {
+    if (slot >= seconds_.size() || !(seconds_[slot] > 0.0f)) return 0.0f;
+    const float elapsed = static_cast<float>(static_cast<double>(now_ms - set_at_[slot])) / 1000.0f;
+    const float left = seconds_[slot] - elapsed;
+    return left < 0.0f ? 0.0f : left;
+}
+
 } // namespace nmsc::nms

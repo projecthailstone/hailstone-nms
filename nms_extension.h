@@ -8,7 +8,7 @@
 //
 // The rules are in plugins/nms/nms_rules.h, the patch's packets in plugins/nms/nms_packets.h; this class keeps the
 // patch's state and answers the core's hooks (nms_extension.cpp: the connection and classes; nms_labels.cpp: the
-// Lua windows' values; nms_ui.cpp: its commands and windows).
+// Lua windows' values; nms_ui.cpp: its commands and ImGui windows; nms_lua.cpp: its Lua windows).
 
 #include <chrono>
 #include <cstdint>
@@ -107,12 +107,18 @@ public:
     static std::string fov_command(const std::string& args, float& max_camera_distance, float& camera_distance);
 
     // ---- the patch's state ----
-    // OP_SkillTimers (0x1339): the server's combat skill timers (remaining ms when received) and the autoskill mask.
+    // OP_SkillTimers (0x1339): the server's combat skill timers (seconds left when received) and the autoskill mask.
     const SkillTimers& skill_timers() const { return skill_timers_; }
-    // OP_WaypointList (0x1402): the waypoints; travel with request_waypoint (OP_WaypointRequest).
+    // The patch's cooldown table over them (and OP_Taunt), for its cooldown window (plugins/nms/nms_lua.cpp).
+    const Cooldowns& cooldowns() const { return cooldowns_; }
+    // OP_WaypointList (0x1402): the waypoints; travel with request_waypoint (OP_WaypointRequest). Each list shows
+    // the patch's waypoint window again (FUN_101954a0): waypoint_serial() counts them (and /waypoint's opens).
     const std::optional<WaypointList>& waypoints() const { return waypoints_; }
+    std::uint32_t waypoint_serial() const { return waypoint_serial_; }
     // `expedition`: the window's My Expedition (id 0); id 0 alone only stores the Port group / Auto accept boxes.
     void request_waypoint(net::GameConnection& c, std::int32_t id, bool expedition = false);
+    // OP_WaypointRequest as given (the Lua WaypointsWnd's buttons and check boxes, with its own box states).
+    void send_waypoint_request(net::GameConnection& c, const WaypointRequest& r);
     // /waypoint [list|id]: opens the waypoint window (plugins/nms/nms_waypoints.h), lists the waypoints, or travels.
     void waypoint_command(net::GameConnection& c, const std::string& args);
     // The patch's discipline timers for ids >= 20 (Get/SetDisciplineReuseTimer detours), ready in Unix seconds.
@@ -127,8 +133,10 @@ private:
     bool report_sent_ = false;     // our 0x140f this zone (re-armed by the next zone)
     std::uint8_t cast_class_ = 0;  // the Heartbeat's cast spoof, 0 none
     SkillTimers skill_timers_;
+    Cooldowns cooldowns_;
     DisciplineTimers disc_timers_;
     std::optional<WaypointList> waypoints_;
+    std::uint32_t waypoint_serial_ = 0;
     std::int64_t zone_in_ms_ = 0;  // for the "non multiclass server" warning
     bool warned_ = false;
     bool auth_sent_ = false;       // OP_CAuth sent this zone and not echoed yet

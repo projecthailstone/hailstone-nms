@@ -144,6 +144,11 @@ void NmsExtension::request_waypoint(GameConnection& c, std::int32_t id, bool exp
     c.send_zone_packet(encode(r));
 }
 
+void NmsExtension::send_waypoint_request(GameConnection& c, const WaypointRequest& r) {
+    if (c.state() != ConnectionState::InZone) return;
+    c.send_zone_packet(encode(r));
+}
+
 void NmsExtension::waypoint_command(GameConnection& c, const std::string& args) {
     // No argument opens the waypoint window, "list" lists the waypoints in chat, an id travels there.
     if (!waypoints_) {
@@ -152,6 +157,7 @@ void NmsExtension::waypoint_command(GameConnection& c, const std::string& args) 
     }
     if (args.empty()) {
         waypoint_window_.show = true;
+        ++waypoint_serial_; // the Lua WaypointsWnd shows again too (plugins/nms/nms_lua.cpp)
         return;
     }
     if (args == "list") {
@@ -271,13 +277,23 @@ bool NmsExtension::packet(GameConnection& c, const net::AppPacket& p) {
         // same handler also runs FUN_100eca90 on this buffer (byte 0: 0 merchant / 1 bank for the spawn id at +1);
         // why is open (notes/nms-dinput8.md §5) and EQEmu's buffer starts with the backstab timer, so the client
         // does not open windows from it. Passed on (the original has no handler for it).
-        if (auto t = decode_skill_timers(p)) skill_timers_ = *t;
+        if (auto t = decode_skill_timers(p)) {
+            skill_timers_ = *t;
+            cooldowns_.on_skill_timers(*t, static_cast<std::uint32_t>(GameConnection::now_ms()));
+        }
         return true;
+    case Op::Taunt:
+        // The patch's cooldown slot 4 (Taunt) := 4 s, then passed on.
+        cooldowns_.set(4, 4.0f, static_cast<std::uint32_t>(GameConnection::now_ms()));
+        return false;
     case Op::WaypointList:
         // The waypoint window's list (plugins/nms/nms_waypoints.h); the patch shows its window on every one.
         // Swallowed.
         waypoints_ = decode_waypoint_list(p);
-        if (waypoints_) waypoint_window_.show = true;
+        if (waypoints_) {
+            waypoint_window_.show = true;
+            ++waypoint_serial_;
+        }
         return true;
     case Op::Weblink:
         // The patch opens the URL in its WebView2 or the system browser per /browser (default off: ignored).

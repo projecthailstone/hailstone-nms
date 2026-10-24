@@ -1,5 +1,6 @@
-// The NMS module's commands and windows: the patch's /fov and /nmsloot, and its "NMS loot window" for the server's
-// personal loot list (NMS/dinput8.dll strings; rof2decomp notes/nms-dinput8.md).
+// The NMS module's commands and ImGui windows: the patch's /fov and /nmsloot, its "NMS loot window" for the server's
+// personal loot list (NMS/dinput8.dll strings; rof2decomp notes/nms-dinput8.md), and the waypoint window when no
+// Lua one stands in for it.
 
 #include <algorithm>
 #include <cctype>
@@ -11,6 +12,7 @@
 #include "net/game_connection.h"
 #include "plugins/nms/nms_extension.h"
 #include "ui/item_windows.h"
+#include "ui/lua/lua_host.h"
 
 namespace nmsc::nms {
 
@@ -106,7 +108,9 @@ bool NmsExtension::window_toggle(net::GameConnection&, const std::string& toggle
 void NmsExtension::draw(net::GameConnection& c, game::ExtensionAppContext& app) {
     if (const auto& pl = c.personal_loot())
         if (auto act = loot_window(loot_window_, *pl, app.item_icons)) c.personal_loot_action(act->first, act->second);
-    if (waypoints_ && c.state() == net::ConnectionState::InZone) {
+    // The Lua WaypointsWnd (plugins/nms/nms_lua.cpp, the patch's SIDL window) stands in for this one when the UI
+    // has it.
+    if (waypoints_ && c.state() == net::ConnectionState::InZone && !ui::lua::replaces("WaypointsWnd")) {
         // WaypointsWnd::WndNotification: Travel sends the waypoint, My Expedition id 0 with the expedition flag,
         // and each check box id 0 with the boxes' state (the server stores them).
         WaypointAction act = waypoint_window(waypoint_window_, *waypoints_);

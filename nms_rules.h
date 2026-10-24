@@ -119,10 +119,42 @@ private:
 };
 
 // ---- OP_SkillTimers 0x1339 (§4.1) ----
-// {u32 backstab, bash, kick, strike, frenzy, autoskill_bitmask}, remaining ms (EQEmu SkillTimers_Struct; the server
-// sends 4 more bytes).
+// {u32 backstab, bash, kick, strike, frenzy, autoskill_bitmask}, the seconds left (EQEmu SkillTimers_Struct from
+// PTimerList::GetRemainingTime; the server sends 4 more bytes).
 struct SkillTimers {
     std::uint32_t backstab = 0, bash = 0, kick = 0, strike = 0, frenzy = 0, autoskill = 0;
+};
+
+// The patch's cooldown table (0x1035d634 seconds, 0x1035d65c the GetTickCount they were set at, 0x103381f0 the
+// longest seen) over the ten auto-skills of its table at 0x10338000 (name, class mask +8, autoskill bit +0xc).
+// FUN_100ecf40(slot, seconds): a positive value is stored with the time and raises the longest seen; anything else
+// clears the slot. The 0x1339 case fills slots 0 backstab, 1 bash, 2 kick, 3 frenzy, 7 and 8 kick, 5, 6 and 9
+// strike, and keeps the autoskill mask (0x1035d630); OP_Taunt 0x2703 sets slot 4 to 4 s.
+struct AutoSkill {
+    const char* name;
+    std::uint32_t class_mask; // the classes that have it (bit c-1)
+    std::uint32_t bit;        // its bit in the autoskill mask
+};
+inline constexpr std::array<AutoSkill, 10> kAutoSkills{{
+    {"Backstab", 0x100, 0}, {"Bash", 0x17, 1}, {"Kick", 0xc049, 2}, {"Frenzy", 0x8000, 3}, {"Taunt", 0x1d, 4},
+    {"Dragon Punch", 0x40, 5}, {"Eagle Strike", 0x40, 6}, {"Flying Kick", 0x40, 7}, {"Round Kick", 0x40, 8},
+    {"Tiger Claw", 0x40, 9},
+}};
+class Cooldowns {
+public:
+    void set(std::size_t slot, float seconds, std::uint32_t now_ms);
+    void on_skill_timers(const SkillTimers& t, std::uint32_t now_ms);
+    // The seconds left (the stored value less the time since it was set, at least 0) and the bar's maximum (the
+    // longest seen, 6 when not above 0).
+    float remaining(std::size_t slot, std::uint32_t now_ms) const;
+    float longest(std::size_t slot) const { return longest_[slot] > 0.0f ? longest_[slot] : 6.0f; }
+    std::uint32_t autoskill_mask() const { return autoskill_; }
+
+private:
+    std::array<float, 10> seconds_{};
+    std::array<std::uint32_t, 10> set_at_{};
+    std::array<float, 10> longest_{10.0f, 6.0f, 6.0f, 10.0f, 4.0f, 6.0f, 6.0f, 6.0f, 6.0f, 6.0f}; // the DLL's data
+    std::uint32_t autoskill_ = 0;
 };
 
 } // namespace nmsc::nms
