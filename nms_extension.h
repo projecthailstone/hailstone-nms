@@ -89,6 +89,7 @@ public:
     std::optional<std::uint8_t> spell_level_needed(const net::GameConnection& c, const game::SpellData& spell,
                                                    std::uint32_t class_id) const override;
     bool song_blocked(const net::GameConnection& c, std::uint8_t raw_bard_level) const override;
+    bool own_begin_cast_line(const net::GameConnection& c, const game::SpellData& s) const override;
     std::optional<bool> can_use_gem(const net::GameConnection& c, int gem) const override;
     bool can_use_all_items(const net::GameConnection& c) const override { return class_mask(c) != 0; }
     std::string class_desc(const net::GameConnection& c, std::int32_t id) const override;

@@ -55,6 +55,16 @@ std::uint32_t usable_classes(std::uint32_t item_classes, std::uint32_t mask, std
 // CharacterZoneClient::BardCastBard detour: a spell whose Bard level byte (+0x24e) is 255 is never a song;
 // otherwise the original decides.
 inline bool bard_cast_bard_blocked(std::uint8_t raw_bard_level) { return raw_bard_level == 0xff; }
+// Not the patch's (this client's own): the NMS server sends a multiclass caster's own 12205 "You begin casting %1."
+// itself (zone/spells.cpp, Custom:MulticlassingEnabled, not for bard songs) through EQEmu's FilteredMessageCheck on
+// FilterPCSpells. That maps the client's PCSpells setting 0 to show, 1 to hide (the client's "your own only") and
+// anything else to group only, and group only drops the caster's own line when it is in no group and no raid.
+// True when the line will not come.
+inline bool own_begin_cast_dropped(std::int32_t pc_spells_setting, bool grouped, bool in_raid) {
+    if (pc_spells_setting == 0) return false;
+    if (pc_spells_setting == 1) return true;
+    return !grouped && !in_raid;
+}
 // CharacterZoneClient::CanUseMemorizedSpellSlot detour: 12 gems from level 1.
 inline bool can_use_memorized_spell_slot(std::int32_t gem) { return gem < 12; }
 

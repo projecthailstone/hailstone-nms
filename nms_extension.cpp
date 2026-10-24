@@ -106,6 +106,13 @@ bool NmsExtension::song_blocked(const GameConnection& c, std::uint8_t raw_bard_l
     return class_mask(c) != 0 && bard_cast_bard_blocked(raw_bard_level);
 }
 
+bool NmsExtension::own_begin_cast_line(const GameConnection& c, const game::SpellData& s) const {
+    // The server's 12205 skips bard songs (EQEmu IsBardSong: a Bard level below 255); those keep CastByMe.
+    if (class_mask(c) == 0 || s.class_level[kBard - 1] != 0xff) return false;
+    return own_begin_cast_dropped(c.chat_filters().settings[game::kFilterPcSpells], c.group().active,
+                                  c.raid().active);
+}
+
 std::optional<bool> NmsExtension::can_use_gem(const GameConnection& c, int gem) const {
     // The patch's CanUseMemorizedSpellSlot detour: gem < 12, from level 1.
     if (class_mask(c) == 0) return std::nullopt;
