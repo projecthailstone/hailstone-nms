@@ -19,6 +19,7 @@
 
 #include "app/lua_eq.h"
 #include "app/lua_eq_windows.h"
+#include "game/item_links.h"
 #include "net/game_connection.h"
 #include "plugins/nms/nms_extension.h"
 
@@ -438,6 +439,119 @@ int NmsAutoskill(lua_State* L) {
     return 0;
 }
 
+// ---------------------------------------------------------------- the Dimensional Pocket Vault (plugins/nms/nms_vault.h)
+
+void push_bag_items(lua_State* L, const std::vector<VaultBagItem>& items) {
+    lua_newtable(L);
+    int n = 0;
+    for (const auto& b : items) {
+        lua_newtable(L);
+        set_int(L, "item", b.item_id);
+        set_int(L, "qty", b.quantity);
+        set_int(L, "icon", b.icon);
+        set_int(L, "slot", b.bag_slot);
+        set_str(L, "name", b.name);
+        lua_rawseti(L, -2, ++n);
+    }
+}
+
+// v = eq.NmsVault()   -- nil outside NMS mode. v.shown; v.page (1..9); v.labels (the page buttons); v.first, v.last
+// (the page's slots); v.slots[slot] = {item, icon, name, bag (its size, 0 not a bag), contents {item, qty, icon,
+// slot, name}}; v.bags = {{slot, name, size, contents}} (the open bag windows); v.cursor = {name, icon} (the item on
+// the cursor) or nil.
+int NmsVault(lua_State* L) {
+    NmsExtension* x = loot_ext(L);
+    if (!x) {
+        lua_pushnil(L);
+        return 1;
+    }
+    const Vault& v = x->vault();
+    lua_newtable(L);
+    set_bool(L, "shown", v.shown());
+    set_int(L, "page", v.page());
+    set_int(L, "first", vault_page_first(v.page()));
+    set_int(L, "last", vault_page_last(v.page()));
+    lua_newtable(L);
+    for (int p = 1; p <= 9; ++p) {
+        lua_pushstring(L, vault_page_label(p));
+        lua_rawseti(L, -2, p);
+    }
+    lua_setfield(L, -2, "labels");
+    lua_newtable(L);
+    for (const auto& s : v.slots()) {
+        lua_newtable(L);
+        set_int(L, "item", s.item_id);
+        set_int(L, "icon", s.icon);
+        set_str(L, "name", s.name);
+        set_int(L, "bag", s.bag_size);
+        push_bag_items(L, s.contents);
+        lua_setfield(L, -2, "contents");
+        lua_rawseti(L, -2, s.slot);
+    }
+    lua_setfield(L, -2, "slots");
+    lua_newtable(L);
+    int n = 0;
+    for (const auto& [slot, b] : v.bags()) {
+        if (!b.open) continue;
+        lua_newtable(L);
+        set_int(L, "slot", b.slot);
+        set_str(L, "name", b.name);
+        set_int(L, "size", b.size);
+        push_bag_items(L, b.contents);
+        lua_setfield(L, -2, "contents");
+        lua_rawseti(L, -2, ++n);
+    }
+    lua_setfield(L, -2, "bags");
+    const auto& conn = *host_of(L).conn;
+    if (const net::Item* it = conn.inventory().at(net::ItemSlot::possessions(net::kSlotCursor)); it && !it->name.empty()) {
+        lua_newtable(L);
+        set_str(L, "name", it->name);
+        set_int(L, "icon", it->icon);
+        lua_setfield(L, -2, "cursor");
+    }
+    return 1;
+}
+
+// eq.NmsVaultSay(command)   -- a vault button's "/say #vault_..." (HideDoCommand); other text is refused
+int NmsVaultSay(lua_State* L) {
+    if (!loot_ext(L)) return 0;
+    const std::string cmd = luaL_checkstring(L, 1);
+    if (cmd.rfind("#vault_", 0) != 0) return 0;
+    host_of(L).conn->send_command("/say " + cmd);
+    return 0;
+}
+
+// eq.NmsVaultWindow(op [, slot])   -- "hide" (the close box), "bag" (a right click on a bag slot: its window opens or
+// closes), "closeBag", "inspect" (a right click on an item: OP_ItemLinkClick with its augments), "inspectItem" (an
+// item id: a bag's item)
+int NmsVaultWindow(lua_State* L) {
+    NmsExtension* x = loot_ext(L);
+    if (!x) return 0;
+    Vault& v = x->vault();
+    const std::string op = luaL_checkstring(L, 1);
+    const auto arg = static_cast<std::int32_t>(luaL_optinteger(L, 2, 0));
+    if (op == "hide") {
+        v.show(false);
+    } else if (op == "bag") {
+        if (const VaultSlot* s = v.at(arg)) v.toggle_bag(*s);
+    } else if (op == "closeBag") {
+        v.close_bag(arg);
+    } else if (op == "inspect") {
+        // FUN_1019c1b0: OP_ItemLinkClick {item, the six augments, flag 4}.
+        if (const VaultSlot* s = v.at(arg); s && s->item_id) {
+            game::ItemLink link;
+            link.item_id = static_cast<std::uint32_t>(s->item_id);
+            for (std::size_t k = 0; k < 6; ++k) link.augments[k] = static_cast<std::uint32_t>(s->augments[k]);
+            host_of(L).conn->request_item(link);
+        }
+    } else if (op == "inspectItem" && arg > 0) {
+        game::ItemLink link;
+        link.item_id = static_cast<std::uint32_t>(arg);
+        host_of(L).conn->request_item(link);
+    }
+    return 0;
+}
+
 } // namespace
 
 void add_lua_windows(std::vector<std::unique_ptr<app::StockWindow>>& out) {
@@ -449,7 +563,9 @@ void register_lua_api(lua_State* L, app::EqHost& host) {
                                     {"NmsLootSend", NmsLootSend},     {"NmsLootRule", NmsLootRule},
                                     {"NmsLootWindow", NmsLootWindow}, {"NmsAutoplay", NmsAutoplay},
                                     {"NmsAutoplayConsole", NmsAutoplayConsole},
-                                    {"NmsAutoskill", NmsAutoskill},   {nullptr, nullptr}};
+                                    {"NmsAutoskill", NmsAutoskill},   {"NmsVault", NmsVault},
+                                    {"NmsVaultSay", NmsVaultSay},     {"NmsVaultWindow", NmsVaultWindow},
+                                    {nullptr, nullptr}};
     for (const luaL_Reg* f = kFns; f->name; ++f) {
         lua_pushlightuserdata(L, &host);
         lua_pushcclosure(L, f->func, 1);

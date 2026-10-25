@@ -443,9 +443,10 @@ bool NmsExtension::handler_command(GameConnection& c, std::string_view handler, 
 }
 
 bool NmsExtension::hide_chat_line(GameConnection& c, const std::string& text) {
-    // The patch's dsp_chat detour (FUN_10119d80): "Your song ends." for a mask without Bard, and the echoes of the
-    // console's own commands ("You say, '#autoskill ...").
+    // The patch's dsp_chat detour (FUN_10119d80): "Your song ends." for a mask without Bard, the vault's lines and
+    // the echoes of the vault's and console's own commands ("You say, '#autoskill ...", nms_rules.h hide_patch_line).
     if (text == "Your song ends." && hide_song_ends(class_mask(c))) return true;
+    vault_.on_chat(text); // the vault's VAULTDATA lines (FUN_10199a20), hidden below
     return hide_patch_line(text);
 }
 

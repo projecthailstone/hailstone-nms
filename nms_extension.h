@@ -23,6 +23,7 @@
 #include "plugins/nms/nms_loot.h"
 #include "plugins/nms/nms_packets.h"
 #include "plugins/nms/nms_rules.h"
+#include "plugins/nms/nms_vault.h"
 #include "plugins/nms/nms_waypoints.h"
 
 namespace nmsc { class Config; }
@@ -152,6 +153,8 @@ public:
     std::optional<bool> autoplay_console;
     // /autoskill [args]: toggles the console, or sends "#autoskill <args>" (FUN_1016c310).
     void autoskill_command(net::GameConnection& c, const std::string& args);
+    // The Dimensional Pocket Vault (plugins/nms/nms_vault.h), fed by the chat lines the dsp_chat detour reads.
+    Vault& vault() { return vault_; }
     // /loot reset counts here: the window goes back to its default place and size.
     std::uint32_t loot_reset_serial() const { return loot_reset_serial_; }
 
@@ -187,6 +190,7 @@ private:
     std::optional<PendingScribe> scribe_;
     bool scribe_in_progress_ = false;
     PersonalLoot loot_;
+    Vault vault_;
     std::uint32_t loot_reset_serial_ = 0;
     std::uint32_t loot_reset_seen_ = 0; // the ImGui window's
     WaypointWindowState waypoint_window_;
