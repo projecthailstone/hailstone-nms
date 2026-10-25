@@ -184,6 +184,12 @@ std::string NmsExtension::window_title(const GameConnection& c) const {
     return nms::window_title(c.character_name(), class_mask(c));
 }
 
+game::CharacterVitals NmsExtension::character_vitals(const GameConnection& c) const {
+    // The patch's stat map is GameConnection::server_stats() (keys 1..0x83 as they came, never cleared; the patch
+    // clears its map only when the client sends 0x166c, docs/nms-module.md).
+    return server_vitals(c.server_stats());
+}
+
 std::vector<std::uint8_t> NmsExtension::max_vitals_classes(const GameConnection& c, std::uint8_t class_id) const {
     // NMS multiclass servers take the best of the unlocked classes (zone/client_mods.cpp CalcBaseHP, CalcBaseMana,
     // CalcBaseEndurance).

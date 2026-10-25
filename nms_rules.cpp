@@ -217,6 +217,22 @@ void DisciplineTimers::set(std::int32_t id, std::uint32_t ready) {
     timers_.emplace_back(id, ready);
 }
 
+game::CharacterVitals server_vitals(const std::map<std::uint32_t, std::int64_t>& stats) {
+    auto stat = [&](std::uint32_t key) -> std::optional<std::int32_t> {
+        auto it = stats.find(key);
+        if (it == stats.end()) return std::nullopt;
+        return it->second >= 0x7ffffffe ? 0x7ffffffe : static_cast<std::int32_t>(static_cast<std::uint32_t>(it->second));
+    };
+    game::CharacterVitals v;
+    v.cur_hp = stat(2);
+    v.cur_mana = stat(3);
+    v.cur_endurance = stat(4);
+    v.max_hp = stat(5);
+    v.max_mana = stat(6);
+    v.max_endurance = stat(7);
+    return v;
+}
+
 std::optional<std::int32_t> discipline_band(std::uint32_t spell_id) {
     struct Band {
         std::uint32_t spell;

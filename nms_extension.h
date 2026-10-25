@@ -108,6 +108,8 @@ public:
     bool aa_any_level(const net::GameConnection&) const override { return true; }
     bool aa_train_all(const net::GameConnection&) const override { return true; }
     std::vector<std::uint8_t> max_vitals_classes(const net::GameConnection& c, std::uint8_t class_id) const override;
+    // The Max / Cur HP, mana and endurance detours (§2c): the server's values (nms::server_vitals).
+    game::CharacterVitals character_vitals(const net::GameConnection& c) const override;
     const game::SkillRules* skill_rules() const override;
     // The patch's CInvSlot::HandleRButtonUp detour (§3.4): a right click on a scroll or tome scribes it, opening the
     // spell book and sitting first unless it is a tome or the book is open (heartbeat replays the click 100 ms

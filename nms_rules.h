@@ -14,10 +14,13 @@
 #include <array>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include "game/server_ext.h"
 
 namespace nmsc::net { struct WhoResponse; }
 
@@ -146,6 +149,13 @@ public:
 private:
     std::vector<std::pair<std::int32_t, std::uint32_t>> timers_;
 };
+
+// The vitals detours (§2c; EQCharacter1Hook in the source's MQ2Labels.cpp): Max_HP, Cur_HP, Max_Mana, Cur_Mana,
+// Max_Endurance and Cur_Endurance return OP_ServerAuthStats key 5 / 2 / 6 / 3 / 7 / 4 when the patch's stat map has
+// it, whatever the arguments and the EQ_Character; else the original. The 64-bit value as a signed compare: 0x7ffffffe
+// and above give 0x7ffffffe, anything else its low 32 bits (so a negative value wraps). No lower clamp, no 10000000
+// cap (the original's Max_HP / Cur_HP have one), nothing stored.
+game::CharacterVitals server_vitals(const std::map<std::uint32_t, std::int64_t>& stats);
 
 // NMSDiscTimers_ApplyBands (FUN_10107460): the CARecastTimerID the patch writes into a discipline (its table of 152
 // at 0x10268a30, applied in game whenever spell 4514's is not 23); nullopt for the spells it leaves alone.
