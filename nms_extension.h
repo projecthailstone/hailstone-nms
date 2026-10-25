@@ -31,11 +31,16 @@ namespace nmsc::net { struct ConnectionOptions; }
 
 namespace nmsc::nms {
 
+// The key the current NMS patch compiles into its OP_CAuth sender (NMS-Release eqgame_dll/eqgame.cpp
+// FireCAuthHandshake: private_key = 352236586), the server's Custom:ServerAuthKey default (common/ruletypes.h).
+inline constexpr std::uint32_t kPatchAuthKey = 352236586;
+
 struct NmsOptions {
     // NMS servers with Custom:ServerAuthStats move clients that do not answer
     // the OP_CAuth check to the Bazaar; the key is that server's
-    // Custom:ServerAuthKey. 0 = do not answer (fine for GM accounts).
-    std::uint32_t auth_key = 0;
+    // Custom:ServerAuthKey. The default is the current patch's own key
+    // (kPatchAuthKey); 0 = do not answer (fine for GM accounts).
+    std::uint32_t auth_key = kPatchAuthKey;
     // The NMS patch's login CRC rewrite (plugins/nms/nms_packets.h): Fixed sends its VM values in place of the
     // eqgame.exe and SkillCaps.txt checksums on an NMS world; None sends the stock checksums. Never real hardware ids.
     HardwareIdMode hardware_id = HardwareIdMode::Fixed;
