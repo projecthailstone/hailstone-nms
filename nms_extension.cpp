@@ -9,6 +9,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <ctime>
+#include <format>
 
 #include "core/config.h"
 #include "core/log.h"
@@ -206,6 +207,68 @@ void NmsExtension::send_waypoint_request(GameConnection& c, const WaypointReques
     c.send_zone_packet(encode(r));
 }
 
+namespace {
+
+// MacroQuest's chat colours as the add-on's WriteChatColor gives them (EQData.h CONCOLOR_*).
+constexpr std::uint32_t kConGreen = 0x02, kConGrey = 0x06, kConYellow = 0x0f;
+
+// multi_pet.cpp GetClassName: the summoning class OP_PetList carries.
+const char* pet_class_name(std::uint32_t id) {
+    static constexpr const char* kNames[] = {"Warrior", "Cleric", "Paladin", "Ranger", "Shadow Knight", "Druid", "Monk",
+                                             "Bard", "Rogue", "Shaman", "Necromancer", "Wizard", "Magician",
+                                             "Enchanter", "Beastlord", "Berserker"};
+    return id >= 1 && id <= 16 ? kNames[id - 1] : "Unknown";
+}
+
+} // namespace
+
+void NmsExtension::pets_command(GameConnection& c) {
+    // MultiPet::ListPets: the spawns' own names ("(spawning)" before the spawn is here), the summoning class and the
+    // pet in the pet window (the local player's PetID).
+    const auto& pets = c.pets();
+    if (!pets.have_list || pets.list.empty()) {
+        c.ui_message("You have no pets.", 0, kConYellow);
+        return;
+    }
+    c.ui_message(std::format("You have {} pet(s):", pets.list.size()), 0, kConYellow);
+    for (std::size_t i = 0; i < pets.list.size(); ++i) {
+        const auto& pet = pets.list[i];
+        auto it = c.world().spawns.find(pet.spawn_id);
+        std::string name = it == c.world().spawns.end() ? "(spawning)" : it->second.name;
+        std::string line = std::format("  {}: {}", i + 1, name);
+        if (pet.class_id > 0) line += std::format(" [{}]", pet_class_name(pet.class_id));
+        if (pet.spawn_id == pets.focused) line += " (pet window)";
+        c.ui_message(std::move(line), 0, kConGreen);
+    }
+}
+
+void NmsExtension::petcycle_command(GameConnection& c) {
+    // MultiPet::CyclePet: the pet after the window's in the list (the first when the window's is not listed) goes
+    // into the pet window; only the local PetID changes, the server is not told.
+    const auto& pets = c.pets();
+    if (pets.list.empty()) return;
+    std::size_t i = 0;
+    while (i < pets.list.size() && pets.list[i].spawn_id != pets.focused) ++i;
+    c.set_window_pet(pets.list[i >= pets.list.size() ? 0 : (i + 1) % pets.list.size()].spawn_id);
+}
+
+void NmsExtension::petdebug_command(GameConnection& c) {
+    // MultiPet::DebugSpawns (the spawn pointers are this client's spawn table here).
+    const auto& pets = c.pets();
+    c.ui_message(std::format("MultiPet Debug: localID={}  uiPetID={}  havePetList={}  trackedPets={}", c.world().player_id,
+                             pets.focused, pets.have_list ? 1 : 0, pets.list.size()),
+                 0, kConYellow);
+    for (std::size_t i = 0; i < pets.list.size(); ++i) {
+        const auto& pet = pets.list[i];
+        auto it = c.world().spawns.find(pet.spawn_id);
+        c.ui_message(std::format("  Pet[{}]: spawnID={} name='{}' classID={} spawned={}", i, pet.spawn_id,
+                                 it == c.world().spawns.end() ? std::string() : it->second.name, pet.class_id,
+                                 it == c.world().spawns.end() ? "no" : "yes"),
+                     0, kConGreen);
+    }
+    c.ui_message(std::format("  Total spawns iterated: {}", c.world().spawns.size()), 0, kConGrey);
+}
+
 void NmsExtension::waypoint_command(GameConnection& c, const std::string& args) {
     // No argument opens the waypoint window, "list" lists the waypoints in chat, an id travels there.
     if (!waypoints_) {
@@ -292,6 +355,18 @@ bool NmsExtension::command(GameConnection& c, const std::string& word, const std
     }
     if (word == "/waypoint" || word == "/waypoints") { // the patch's waypoint window, as text
         waypoint_command(c, args);
+        return true;
+    }
+    if (word == "/pets") { // MultiPet's commands (multi_pet.cpp)
+        pets_command(c);
+        return true;
+    }
+    if (word == "/petcycle") {
+        petcycle_command(c);
+        return true;
+    }
+    if (word == "/petdebug") {
+        petdebug_command(c);
         return true;
     }
     return false;

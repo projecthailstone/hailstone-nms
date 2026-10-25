@@ -135,6 +135,11 @@ public:
     void send_waypoint_request(net::GameConnection& c, const WaypointRequest& r);
     // /waypoint [list|id]: opens the waypoint window (plugins/nms/nms_waypoints.h), lists the waypoints, or travels.
     void waypoint_command(net::GameConnection& c, const std::string& args);
+    // The add-on's MultiPet commands (multi_pet.cpp) over the server's pet list (OP_PetList): /pets lists the pets,
+    // /petcycle shows the next one in the pet window, /petdebug says what is tracked.
+    static void pets_command(net::GameConnection& c);
+    static void petcycle_command(net::GameConnection& c);
+    static void petdebug_command(net::GameConnection& c);
     // The patch's discipline timers for ids >= 20 (Get/SetDisciplineReuseTimer detours), ready in Unix seconds.
     const DisciplineTimers& discipline_timers() const { return disc_timers_; }
     const NmsOptions& options() const { return options_; }
