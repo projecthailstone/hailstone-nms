@@ -286,4 +286,17 @@ bool scribe_is_tome(std::uint8_t item_type, const std::string& name) {
     return false;
 }
 
+bool hide_patch_line(std::string_view text) {
+    auto has = [text](std::string_view s) { return text.find(s) != std::string_view::npos; };
+    if (has("VAULTDATA|") || has("--- DIMENSIONAL POCKET VAULT ---") || has("Pages: ") ||
+        has("Put an item or bag on your cursor and click 'Deposit Cursor'") ||
+        (has("Slot ") && (has("Withdraw") || has("Deposit Cursor") || has("<Empty>"))) ||
+        has("_______________________________________________"))
+        return true;
+    if (has("You say, '") && (has("vault_page") || has("vault_deposit") || has("vault_withdraw") ||
+                               has("vault_bank") || has("vault_merchant") || has("#autoskill")))
+        return true;
+    return has("launching the welcome screen");
+}
+
 } // namespace nmsc::nms

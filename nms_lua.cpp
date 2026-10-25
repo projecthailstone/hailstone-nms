@@ -10,6 +10,7 @@
 
 #include "plugins/nms/nms_lua.h"
 
+#include <algorithm>
 #include <set>
 #include <string>
 #include <vector>
@@ -24,6 +25,12 @@
 namespace nmsc::nms {
 
 namespace {
+
+// /loot reset as the Lua window last saw it.
+std::uint32_t& loot_reset_seen() {
+    static std::uint32_t seen = 0;
+    return seen;
+}
 
 // The connection's NMS extension when it runs (an NMS server), else null.
 NmsExtension* ext(app::EqHost& host) {
@@ -214,6 +221,223 @@ int NmsCooldowns(lua_State* L) {
     return 1;
 }
 
+// ---------------------------------------------------------------- the Personal Loot window (plugins/nms/nms_loot.h)
+
+void set_int(lua_State* L, const char* k, lua_Integer v) {
+    lua_pushinteger(L, v);
+    lua_setfield(L, -2, k);
+}
+void set_str(lua_State* L, const char* k, const std::string& v) {
+    lua_pushlstring(L, v.data(), v.size());
+    lua_setfield(L, -2, k);
+}
+void set_bool(lua_State* L, const char* k, bool v) {
+    lua_pushboolean(L, v);
+    lua_setfield(L, -2, k);
+}
+app::EqHost& host_of(lua_State* L) { return *static_cast<app::EqHost*>(lua_touserdata(L, lua_upvalueindex(1))); }
+NmsExtension* loot_ext(lua_State* L) {
+    app::EqHost& host = host_of(L);
+    return host.in_game ? ext(host) : nullptr;
+}
+
+// st = eq.NmsLoot()   -- the Personal Loot window's state; nil outside NMS mode. st.visible; st.tab (a tab /loot
+// asked for, once: 0 loot .. 3 settings, else -1); st.reset (/loot reset, once); st.rows {pending, item, icon, qty,
+// charges, value, left (seconds), lore, nodrop, augmented, name, npc, rule (the saved rule, 0..4)}; st.settings
+// (nil until the server sent them) {enabled, sellUnder, timeout, defer, report}; st.history (newest first) {item,
+// icon, qty, copper, age (seconds), action (1 kept, 2 sold, 3 destroyed), name, npc}; st.localHistory (newest
+// first) {name, npc, qty, rule, age}; st.rules {id, type, name}; st.rulesFile.
+int NmsLoot(lua_State* L) {
+    NmsExtension* x = loot_ext(L);
+    if (!x) {
+        lua_pushnil(L);
+        return 1;
+    }
+    PersonalLoot& loot = x->personal_loot();
+    const std::int64_t now = net::GameConnection::now_ms();
+    lua_newtable(L);
+    set_bool(L, "visible", loot.visible());
+    set_int(L, "tab", loot.take_requested_tab());
+    auto& seen = loot_reset_seen();
+    set_bool(L, "reset", seen != x->loot_reset_serial());
+    seen = x->loot_reset_serial();
+    lua_newtable(L);
+    int n = 0;
+    for (const PersonalLoot::Row* r : loot.visible_rows(now)) {
+        lua_newtable(L);
+        set_int(L, "pending", r->d.pending_id);
+        set_int(L, "item", r->d.item_id);
+        set_int(L, "icon", r->d.icon);
+        set_int(L, "qty", r->d.quantity);
+        set_int(L, "charges", r->d.charges);
+        set_int(L, "value", r->d.sell_value);
+        set_int(L, "left", PersonalLoot::seconds_left(*r, now));
+        set_bool(L, "lore", r->d.lore != 0);
+        set_bool(L, "nodrop", r->d.no_drop != 0);
+        set_bool(L, "augmented", r->d.augmented != 0);
+        set_str(L, "name", r->d.item_name);
+        set_str(L, "npc", r->d.npc_name);
+        set_int(L, "rule", static_cast<int>(loot.rules().get(r->d.item_id)));
+        lua_rawseti(L, -2, ++n);
+    }
+    lua_setfield(L, -2, "rows");
+    if (const auto& s = loot.settings()) {
+        lua_newtable(L);
+        set_bool(L, "enabled", (s->flags & 1) != 0);
+        set_int(L, "sellUnder", s->sell_under);
+        set_int(L, "timeout", s->timeout_seconds);
+        set_bool(L, "defer", s->defer_in_combat);
+        set_bool(L, "report", s->report_enabled);
+        lua_setfield(L, -2, "settings");
+    }
+    lua_newtable(L);
+    n = 0;
+    const auto& hist = loot.history();
+    const auto since = static_cast<std::uint32_t>(std::max<std::int64_t>(0, now - loot.history_ms()) / 1000);
+    for (auto it = hist.rbegin(); it != hist.rend(); ++it) {
+        lua_newtable(L);
+        set_int(L, "item", it->item_id);
+        set_int(L, "icon", it->icon);
+        set_int(L, "qty", it->quantity);
+        set_int(L, "copper", it->copper);
+        set_int(L, "age", it->age_seconds + since);
+        set_int(L, "action", it->action);
+        set_str(L, "name", it->item_name);
+        set_str(L, "npc", it->npc_name);
+        lua_rawseti(L, -2, ++n);
+    }
+    lua_setfield(L, -2, "history");
+    lua_newtable(L);
+    n = 0;
+    for (const auto& h : loot.local_history()) {
+        lua_newtable(L);
+        set_str(L, "name", h.item);
+        set_str(L, "npc", h.npc);
+        set_int(L, "qty", h.quantity);
+        set_int(L, "rule", static_cast<int>(h.rule));
+        set_int(L, "age", std::max<std::int64_t>(0, now - h.at_ms) / 1000);
+        lua_rawseti(L, -2, ++n);
+    }
+    lua_setfield(L, -2, "localHistory");
+    lua_newtable(L);
+    n = 0;
+    for (const auto& r : loot.rules().rules()) {
+        lua_newtable(L);
+        set_int(L, "id", r.item_id);
+        set_int(L, "type", static_cast<int>(r.type));
+        set_str(L, "name", r.name);
+        lua_rawseti(L, -2, ++n);
+    }
+    lua_setfield(L, -2, "rules");
+    set_str(L, "rulesFile", loot.rules().path().string());
+    return 1;
+}
+
+// eq.NmsLootSend(action [, pending, item, value])   -- an OP_PersonalLootAction (PersonalLootActionType)
+int NmsLootSend(lua_State* L) {
+    NmsExtension* x = loot_ext(L);
+    if (!x) return 0;
+    LootSend a;
+    a.action = static_cast<std::uint32_t>(luaL_checkinteger(L, 1));
+    a.pending_id = static_cast<std::uint32_t>(luaL_optinteger(L, 2, 0));
+    a.item_id = static_cast<std::uint32_t>(luaL_optinteger(L, 3, 0));
+    a.value = static_cast<std::uint32_t>(luaL_optinteger(L, 4, 0));
+    x->send_loot(*host_of(L).conn, a);
+    return 0;
+}
+
+// eq.NmsLootRule(item, name, type)   -- sets (type 1..4) or removes (0) an item rule; saved at once
+int NmsLootRule(lua_State* L) {
+    NmsExtension* x = loot_ext(L);
+    if (!x) return 0;
+    const auto id = static_cast<std::uint32_t>(luaL_checkinteger(L, 1));
+    const char* name = luaL_optstring(L, 2, "");
+    const auto type = static_cast<int>(luaL_checkinteger(L, 3));
+    if (id == 0 || type < 0 || type >= kLootRuleCount) return 0;
+    x->personal_loot().set_rule(id, name, static_cast<LootRule>(type));
+    return 0;
+}
+
+// eq.NmsLootWindow(op [, value])   -- "show" (value: true / false), "reload" (reread the rules file), "clearHistory",
+// "prefs" (value: {autoOpen, autoClose, pinned, locked, countdown, sound}, the window's settings)
+int NmsLootWindow(lua_State* L) {
+    NmsExtension* x = loot_ext(L);
+    if (!x) return 0;
+    PersonalLoot& loot = x->personal_loot();
+    const std::string op = luaL_checkstring(L, 1);
+    if (op == "show") {
+        loot.show(lua_toboolean(L, 2) != 0, net::GameConnection::now_ms());
+    } else if (op == "reload") {
+        loot.rules().load(loot.rules().path());
+    } else if (op == "clearHistory") {
+        loot.clear_local_history();
+    } else if (op == "prefs" && lua_istable(L, 2)) {
+        auto flag = [&](const char* k, bool& v) {
+            lua_getfield(L, 2, k);
+            if (!lua_isnil(L, -1)) v = lua_toboolean(L, -1) != 0;
+            lua_pop(L, 1);
+        };
+        flag("autoOpen", loot.prefs.auto_open);
+        flag("autoClose", loot.prefs.auto_close);
+        flag("pinned", loot.prefs.pinned);
+        flag("locked", loot.prefs.locked);
+        flag("countdown", loot.prefs.show_countdown);
+        flag("sound", loot.prefs.sound);
+    }
+    return 0;
+}
+
+// ---------------------------------------------------------------- the Multiclass Autoplay Console (FUN_1000a430)
+
+// st = eq.NmsAutoplay()   -- nil outside NMS mode. st.console: the console shown (nil until the UI gave its saved
+// state); st.rows: for each of the ten auto-skills whose classes meet the character's (the class mask, else
+// 1 << (class - 1)), {name, enabled (its autoskill bit), left (seconds), fraction (left / the longest seen)}.
+int NmsAutoplay(lua_State* L) {
+    NmsExtension* x = loot_ext(L);
+    if (!x) {
+        lua_pushnil(L);
+        return 1;
+    }
+    const auto& c = *host_of(L).conn;
+    std::uint32_t classes = x->class_mask(c);
+    if (classes == 0 && c.profile() && c.profile()->class_ > 0) classes = 1u << ((c.profile()->class_ - 1) & 31);
+    const auto& cd = x->cooldowns();
+    const auto now = static_cast<std::uint32_t>(net::GameConnection::now_ms());
+    lua_newtable(L);
+    if (x->autoplay_console) set_bool(L, "console", *x->autoplay_console);
+    lua_newtable(L);
+    int n = 0;
+    for (std::size_t i = 0; i < kAutoSkills.size(); ++i) {
+        const auto& s = kAutoSkills[i];
+        if (!(classes & s.class_mask)) continue;
+        const float left = cd.remaining(i, now);
+        lua_newtable(L);
+        set_str(L, "name", s.name);
+        set_bool(L, "enabled", (cd.autoskill_mask() & (1u << s.bit)) != 0);
+        lua_pushnumber(L, left);
+        lua_setfield(L, -2, "left");
+        lua_pushnumber(L, left > 0.0f ? left / cd.longest(i) : 0.0f);
+        lua_setfield(L, -2, "fraction");
+        lua_rawseti(L, -2, ++n);
+    }
+    lua_setfield(L, -2, "rows");
+    return 1;
+}
+
+// eq.NmsAutoplayConsole(shown)   -- shows or hides the console (the UI's saved state, or its close box)
+int NmsAutoplayConsole(lua_State* L) {
+    if (NmsExtension* x = loot_ext(L)) x->autoplay_console = lua_toboolean(L, 1) != 0;
+    return 0;
+}
+
+// eq.NmsAutoskill(name, enable)   -- a console check box: "/say #autoskill <name> enable|disable" (HideDoCommand)
+int NmsAutoskill(lua_State* L) {
+    if (!loot_ext(L)) return 0;
+    const std::string name = luaL_checkstring(L, 1);
+    host_of(L).conn->send_command("/say #autoskill " + name + (lua_toboolean(L, 2) ? " enable" : " disable"));
+    return 0;
+}
+
 } // namespace
 
 void add_lua_windows(std::vector<std::unique_ptr<app::StockWindow>>& out) {
@@ -221,9 +445,16 @@ void add_lua_windows(std::vector<std::unique_ptr<app::StockWindow>>& out) {
 }
 
 void register_lua_api(lua_State* L, app::EqHost& host) {
-    lua_pushlightuserdata(L, &host);
-    lua_pushcclosure(L, NmsCooldowns, 1);
-    lua_setfield(L, -2, "NmsCooldowns");
+    static const luaL_Reg kFns[] = {{"NmsCooldowns", NmsCooldowns},   {"NmsLoot", NmsLoot},
+                                    {"NmsLootSend", NmsLootSend},     {"NmsLootRule", NmsLootRule},
+                                    {"NmsLootWindow", NmsLootWindow}, {"NmsAutoplay", NmsAutoplay},
+                                    {"NmsAutoplayConsole", NmsAutoplayConsole},
+                                    {"NmsAutoskill", NmsAutoskill},   {nullptr, nullptr}};
+    for (const luaL_Reg* f = kFns; f->name; ++f) {
+        lua_pushlightuserdata(L, &host);
+        lua_pushcclosure(L, f->func, 1);
+        lua_setfield(L, -2, f->name);
+    }
 }
 
 } // namespace nmsc::nms

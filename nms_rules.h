@@ -16,6 +16,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace nmsc::net { struct WhoResponse; }
@@ -112,6 +113,12 @@ std::string class_desc(std::int32_t id, const std::function<std::string(std::int
 std::string window_title(const std::string& name, std::uint32_t mask);
 // dsp_chat: "Your song ends." is dropped with a non-zero mask that has no Bard.
 inline bool hide_song_ends(std::uint32_t mask) { return mask != 0 && !has_class(mask, kBard); }
+// The rest of the dsp_chat detour's drops (FUN_10119d80): the vault's data lines ("VAULTDATA|", which the vault
+// window reads) and its text replies ("--- DIMENSIONAL POCKET VAULT ---", "Pages: ", the deposit hint, "Slot " lines
+// with Withdraw / Deposit Cursor / <Empty>, the rule), the echoes of the patch's own commands ("You say, '" with
+// vault_page / vault_deposit / vault_withdraw / vault_bank / vault_merchant / #autoskill), and "launching the welcome
+// screen". (Its LootNScoot "[NMS] Not active looter" throttle and MQ2's /filter list are not ported.)
+bool hide_patch_line(std::string_view text);
 // The item display's "Level Needed: " line for a spell scroll (FUN_101507b0 / ScrubTooltipLevelNeeded):
 // "Level Needed: CLR(1) WIZ(4)", one per mask class with a level byte other than 0 and 255, "Level Needed: CANNOT
 // USE" when none; with mask 0 the visible class alone.

@@ -298,6 +298,40 @@ void NmsExtension::waypoint_command(GameConnection& c, const std::string& args) 
     request_waypoint(c, std::atoi(args.c_str()));
 }
 
+void NmsExtension::send_loot(GameConnection& c, const LootSend& a) {
+    // The patch's Send: only in the game, on the zone connection.
+    if (c.state() != ConnectionState::InZone) return;
+    c.send_zone_packet(net::encode_personal_loot_action(a.action, a.pending_id, a.item_id, a.value));
+}
+
+void NmsExtension::ensure_loot_rules(GameConnection& c) {
+    // LoadRulesIfNeeded: the character's itemrules.ini (the patch's <name>_itemrules.ini), read when the character
+    // changes. (The patch also rereads while it has no rules, every pulse; "/loot rules" rereads a hand edit.)
+    const CharacterFiles files = c.own_files();
+    const std::filesystem::path path = files.empty() ? std::filesystem::path() : files.dir / "itemrules.ini";
+    if (path != loot_.rules().path()) loot_.rules().load(path);
+}
+
+void NmsExtension::loot_command(GameConnection& c, const std::string& args) {
+    ensure_loot_rules(c);
+    LootCommandResult r = nms::loot_command(loot_, args, GameConnection::now_ms());
+    for (const auto& line : r.lines) c.ui_message(line);
+    for (const auto& a : r.sends) send_loot(c, a);
+    if (r.reset_window) ++loot_reset_serial_;
+}
+
+void NmsExtension::autoskill_command(GameConnection& c, const std::string& args) {
+    // FUN_1016c310: no argument toggles the console and says so; anything else goes to the server's #autoskill.
+    std::size_t i = 0;
+    while (i < args.size() && std::isspace(static_cast<unsigned char>(args[i]))) ++i;
+    if (i == args.size()) {
+        autoplay_console = !autoplay_console.value_or(false);
+        c.ui_message(std::string("[NMS] Multiclass Autoplay Console ") + (*autoplay_console ? "Enabled." : "Disabled."));
+        return;
+    }
+    c.send_command("#autoskill " + args.substr(i));
+}
+
 void NmsExtension::send_cauth(GameConnection& c) {
     // FUN_100ed9f0: once per zone, after the class mask and the spawn id are known (EnterZone re-arms it).
     std::uint32_t mask = class_mask(c);
@@ -329,6 +363,7 @@ void NmsExtension::zone_server_changed(GameConnection&) {
     cast_class_ = 0;
     waypoints_.reset();
     waypoint_window_.show = false; // WaypointsWnd::OnSetGameState hides it outside the game
+    loot_.reset(false);            // the Personal Loot window hides and says Hello again in the new zone
 }
 
 void NmsExtension::outgoing_checksum(GameConnection& c, net::AppPacket& p) {
@@ -355,12 +390,16 @@ void NmsExtension::server_stats_changed(GameConnection& c) {
 }
 
 bool NmsExtension::command(GameConnection& c, const std::string& word, const std::string& args) {
-    if (word == "/nmsloot") { // the NMS client patch's loot window (nms_ui.cpp)
-        c.request_window_toggle("nmsloot " + args);
+    if (word == "/nmsloot") { // the shipped patch's name for its loot window's command (plugins/nms/nms_loot.h)
+        loot_command(c, args);
         return true;
     }
     if (word == "/fov" || word == "/camera") { // the patch's CmdFov: the max zoom distance (nms_ui.cpp)
         c.request_window_toggle("fov " + args);
+        return true;
+    }
+    if (word == "/autoskill") { // the patch's console (FUN_1016c310)
+        autoskill_command(c, args);
         return true;
     }
     if (word == "/waypoint" || word == "/waypoints") { // the patch's waypoint window, as text
@@ -383,6 +422,11 @@ bool NmsExtension::command(GameConnection& c, const std::string& word, const std
 }
 
 bool NmsExtension::handler_command(GameConnection& c, std::string_view handler, const std::string& args) {
+    if (handler == "__do_loot") {
+        // The patch's AddCommand("/loot", LootCommand) takes /loot over: its Personal Loot window.
+        loot_command(c, args);
+        return true;
+    }
     if (handler != "cmd_alternateadv") return false;
     // The NMS patch's detour (cmd_alternateadv, Hooks.cpp): "/alt toggle <id>" becomes "/say #alttoggle <id>"
     // (an NMS server command); other forms go on to the original.
@@ -398,9 +442,11 @@ bool NmsExtension::handler_command(GameConnection& c, std::string_view handler, 
     return true;
 }
 
-bool NmsExtension::hide_chat_line(const GameConnection& c, const std::string& text) const {
-    // The NMS patch's dsp_chat detour: "Your song ends." is dropped for a mask without Bard.
-    return text == "Your song ends." && hide_song_ends(class_mask(c));
+bool NmsExtension::hide_chat_line(GameConnection& c, const std::string& text) {
+    // The patch's dsp_chat detour (FUN_10119d80): "Your song ends." for a mask without Bard, and the echoes of the
+    // console's own commands ("You say, '#autoskill ...").
+    if (text == "Your song ends." && hide_song_ends(class_mask(c))) return true;
+    return hide_patch_line(text);
 }
 
 std::optional<std::vector<std::string>> NmsExtension::who_lines(const GameConnection&,
@@ -413,7 +459,25 @@ std::optional<std::vector<std::string>> NmsExtension::who_lines(const GameConnec
 // signals: GameConnection::handle_world / handle_zone). True = the patch swallows the packet (the original never
 // sees it).
 bool NmsExtension::packet(GameConnection& c, const net::AppPacket& p) {
+    const std::int64_t now = GameConnection::now_ms();
     switch (net::from_wire(p.opcode)) {
+    case Op::PersonalLootList:
+        // The Personal Loot window's OnList (plugins/nms/nms_loot.h): the rows a rule covers are answered now.
+        // Passed on (the core keeps the list too).
+        if (auto l = net::decode_personal_loot_list(p)) {
+            ensure_loot_rules(c);
+            for (const LootSend& a : loot_.on_list(*l, now)) send_loot(c, a);
+        }
+        return false;
+    case Op::PersonalLootFilters:
+        // The server's own filters, for clients without the patch: the patch accepts and ignores them.
+        return true;
+    case Op::PersonalLootSettings:
+        if (auto s = decode_loot_settings(p)) loot_.on_settings(*s);
+        return true;
+    case Op::PersonalLootHistory:
+        if (auto h = decode_loot_history(p)) loot_.on_history(std::move(*h), now);
+        return true;
     case Op::SkillTimers:
         // {backstab, bash, kick, strike, frenzy, autoskill mask} -> the patch's cooldown table (0x1035d634). The
         // same handler also runs FUN_100eca90 on this buffer (byte 0: 0 merchant / 1 bank for the spawn id at +1);
@@ -507,6 +571,9 @@ void NmsExtension::heartbeat(GameConnection& c) {
         scribe_.reset();
         return;
     }
+    // The Personal Loot window's OnPulse: its rules for this character, and the Hello once per zone.
+    ensure_loot_rules(c);
+    if (auto hello = loot_.pulse(c.world().player() != nullptr, GameConnection::now_ms())) send_loot(c, *hello);
     const std::uint32_t mask = class_mask(c);
     const auto& spells = c.spell_state();
     // The cast spoof: while a spell whose Bard level is 255 is being cast, the first mask class that can cast it.

@@ -20,6 +20,7 @@
 #include "core/server_profile.h"
 #include "game/server_ext.h"
 #include "net/item_packets.h"
+#include "plugins/nms/nms_loot.h"
 #include "plugins/nms/nms_packets.h"
 #include "plugins/nms/nms_rules.h"
 #include "plugins/nms/nms_waypoints.h"
@@ -50,16 +51,9 @@ NmsOptions read_options(const Config& config, const ServerProfile& profile);
 // extension, the stock client throughout.
 void set_server_module(net::ConnectionOptions& options, ServerModule module, const NmsOptions& nms);
 
-// The NMS loot window's place (/nmsloot).
-struct LootWindowState {
-    bool show = true;   // shown while items wait for a decision
-    bool reset = false; // /nmsloot reset: back to its default place and size
-};
-// The NMS client patch's "NMS loot window" for the server's personal loot list (Custom:Loot_Enabled); returns
-// the button pressed: {action, pending id} (net::kLootAction*).
-std::optional<std::pair<std::uint32_t, std::uint32_t>> loot_window(LootWindowState& state,
-                                                                   const net::PersonalLootList& list,
-                                                                   ui::ItemIconCache* icons);
+// The Personal Loot window's Loot tab in ImGui, for a UI without the Lua one (nmsloot.lua); returns the action to
+// send.
+std::optional<LootSend> loot_window(PersonalLoot& loot, bool reset, ui::ItemIconCache* icons);
 
 class NmsExtension final : public game::ServerExtension {
 public:
@@ -77,7 +71,7 @@ public:
     void heartbeat(net::GameConnection& c) override;
     bool command(net::GameConnection& c, const std::string& word, const std::string& args) override;
     bool handler_command(net::GameConnection& c, std::string_view handler, const std::string& args) override;
-    bool hide_chat_line(const net::GameConnection& c, const std::string& text) const override;
+    bool hide_chat_line(net::GameConnection& c, const std::string& text) override;
     std::optional<std::vector<std::string>> who_lines(const net::GameConnection& c,
                                                       const net::WhoResponse& r) const override;
 
@@ -122,8 +116,8 @@ public:
     // ---- commands and windows (nms_ui.cpp) ----
     bool window_toggle(net::GameConnection& c, const std::string& toggle, game::ExtensionAppContext& app) override;
     void draw(net::GameConnection& c, game::ExtensionAppContext& app) override;
-    // /nmsloot [show|open|hide|close|reset|help]: the NMS loot window; returns the lines to print.
-    std::vector<std::string> loot_command(const std::string& args);
+    // /loot and /nmsloot: the Personal Loot window's commands (plugins/nms/nms_loot.h loot_command).
+    void loot_command(net::GameConnection& c, const std::string& args);
     // The patch's /fov (and /camera) <10..150>: the maximum camera zoom distance; returns the line to print.
     static std::string fov_command(const std::string& args, float& max_camera_distance, float& camera_distance);
 
@@ -150,10 +144,21 @@ public:
     // The patch's discipline timers for ids >= 20 (Get/SetDisciplineReuseTimer detours), ready in Unix seconds.
     const DisciplineTimers& discipline_timers() const { return disc_timers_; }
     const NmsOptions& options() const { return options_; }
+    // The Personal Loot window (plugins/nms/nms_loot.h) and an OP_PersonalLootAction from it.
+    PersonalLoot& personal_loot() { return loot_; }
+    void send_loot(net::GameConnection& c, const LootSend& a);
+    // The "Multiclass Autoplay Console" (FUN_1000a430): shown or not (unset until the UI gives its saved state);
+    // /autoskill with no argument toggles it.
+    std::optional<bool> autoplay_console;
+    // /autoskill [args]: toggles the console, or sends "#autoskill <args>" (FUN_1016c310).
+    void autoskill_command(net::GameConnection& c, const std::string& args);
+    // /loot reset counts here: the window goes back to its default place and size.
+    std::uint32_t loot_reset_serial() const { return loot_reset_serial_; }
 
 private:
     bool packet(net::GameConnection& c, const net::AppPacket& p);
     void send_cauth(net::GameConnection& c);
+    void ensure_loot_rules(net::GameConnection& c);
 
     NmsOptions options_;
     bool report_sent_ = false;     // our 0x140f this zone (re-armed by the next zone)
@@ -181,7 +186,9 @@ private:
     bool book_opened_by_scribe_ = false;
     std::optional<PendingScribe> scribe_;
     bool scribe_in_progress_ = false;
-    LootWindowState loot_window_;
+    PersonalLoot loot_;
+    std::uint32_t loot_reset_serial_ = 0;
+    std::uint32_t loot_reset_seen_ = 0; // the ImGui window's
     WaypointWindowState waypoint_window_;
 };
 
