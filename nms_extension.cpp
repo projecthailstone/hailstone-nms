@@ -185,7 +185,8 @@ std::string NmsExtension::window_title(const GameConnection& c) const {
 }
 
 std::vector<std::uint8_t> NmsExtension::max_vitals_classes(const GameConnection& c, std::uint8_t class_id) const {
-    // NMS multiclass servers take the best of the unlocked classes (zone/client_mods.cpp CalcBaseHP, CalcBaseMana).
+    // NMS multiclass servers take the best of the unlocked classes (zone/client_mods.cpp CalcBaseHP, CalcBaseMana,
+    // CalcBaseEndurance).
     const std::uint32_t mask = class_mask(c);
     if (!mask || mask == class_bit(class_id)) return {class_id};
     std::vector<std::uint8_t> out;
