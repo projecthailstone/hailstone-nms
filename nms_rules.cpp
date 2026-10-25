@@ -270,4 +270,20 @@ float Cooldowns::remaining(std::size_t slot, std::uint32_t now_ms) const {
     return left < 0.0f ? 0.0f : left;
 }
 
+std::uint8_t scribe_class(std::uint32_t item_classes, std::uint32_t mask) {
+    const std::uint32_t both = item_classes & mask;
+    const std::uint32_t active = both != 0 ? both : item_classes;
+    for (std::uint32_t i = 0; i < 16; ++i)
+        if (active & (1u << i)) return static_cast<std::uint8_t>(i + 1);
+    return 0;
+}
+
+bool scribe_is_tome(std::uint8_t item_type, const std::string& name) {
+    if (item_type == 31) return true;
+    if (item_type != 20) return false;
+    for (const char* w : {"Tome", "tome", "Skill", "skill", "Discipline", "discipline"})
+        if (name.find(w) != std::string::npos) return true;
+    return false;
+}
+
 } // namespace nmsc::nms

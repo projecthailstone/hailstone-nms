@@ -106,6 +106,10 @@ public:
     bool aa_train_all(const net::GameConnection&) const override { return true; }
     std::vector<std::uint8_t> max_vitals_classes(const net::GameConnection& c, std::uint8_t class_id) const override;
     const game::SkillRules* skill_rules() const override;
+    // The patch's CInvSlot::HandleRButtonUp detour (§3.4): a right click on a scroll or tome scribes it, opening the
+    // spell book and sitting first unless it is a tome or the book is open (heartbeat replays the click 100 ms
+    // later). The class / level 100 spoof around the original reaches its casting check only (class_id).
+    bool item_right_click(net::GameConnection& c, const net::ItemSlot& slot) override;
 
     // ---- the Lua windows' values (nms_labels.cpp) ----
     std::function<std::string(const game::SpellData&)> level_needed_line(const net::GameConnection& c) const override;
@@ -161,6 +165,19 @@ private:
     bool warned_ = false;
     bool auth_sent_ = false;       // OP_CAuth sent this zone and not echoed yet
     std::chrono::steady_clock::time_point auth_time_{};
+    // The scribe path's state (§3.4): g_pendingSpellBookShow, g_spellBookOpenedByScribe, the pending replay
+    // (g_pendingScribeThis as the slot, its target class, g_scribeEndTick) and g_scribeInProgress, which makes
+    // GetSpellLevelNeeded answer as for a scroll on the cursor while the original runs.
+    struct PendingScribe {
+        net::ItemSlot slot;
+        std::uint8_t target_class = 0;
+        std::int64_t due_ms = 0;
+    };
+    void run_scribe(net::GameConnection& c, const net::ItemSlot& slot, std::uint8_t target_class);
+    bool show_book_pending_ = false;
+    bool book_opened_by_scribe_ = false;
+    std::optional<PendingScribe> scribe_;
+    bool scribe_in_progress_ = false;
     LootWindowState loot_window_;
     WaypointWindowState waypoint_window_;
 };

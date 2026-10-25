@@ -97,7 +97,8 @@ std::optional<std::uint8_t> NmsExtension::spell_level_needed(const GameConnectio
     };
     // g_scribeInProgress, or a type-20 scroll of this spell on the cursor.
     const auto& spells = c.spell_state();
-    const bool scribe = (spells.scribing && spells.scribing->spell == spell.id) || c.cursor_scroll_spell() == spell.id;
+    const bool scribe = scribe_in_progress_ || (spells.scribing && spells.scribing->spell == spell.id) ||
+                        c.cursor_scroll_spell() == spell.id;
     // The detour reads the spawn's class (PlayerClient +0xeb8), which the Heartbeat's cast spoof may have changed.
     return nms::spell_level_needed(orig, class_id, c.visible_class(), mask, c.world().player() != nullptr, scribe);
 }
@@ -463,9 +464,38 @@ bool NmsExtension::packet(GameConnection& c, const net::AppPacket& p) {
 
 // The patch's per-frame Heartbeat (FUN_1016b670, §3.3), the parts with client state: the cast spoof, the global
 // recovery removal, the OP_CAuth / 0x140f sends and the "non multiclass server" warning.
+bool NmsExtension::item_right_click(GameConnection& c, const net::ItemSlot& slot) {
+    if (c.state() != ConnectionState::InZone || !c.world().player()) return false;
+    const net::Item* item = c.inventory().at(slot);
+    if (!item || !scribe_click(item->item_type)) return false;
+    const std::uint8_t target = scribe_class(item->classes, class_mask(c));
+    // A tome learns at once, the book closed; with the book open a scroll scribes at once too.
+    if (scribe_is_tome(item->item_type, item->name) || c.spell_book_open()) {
+        run_scribe(c, slot, target);
+        return true;
+    }
+    // Else: /book now, the sit on the next frame, the click again 100 ms later.
+    c.send_command("/book");
+    show_book_pending_ = true;
+    scribe_ = PendingScribe{slot, target, GameConnection::now_ms() + kScribeDelayMs};
+    return true;
+}
+
+void NmsExtension::run_scribe(GameConnection& c, const net::ItemSlot& slot, std::uint8_t target_class) {
+    // NMS_BeginScribeSpoof: class = the target class (when there is one) and level 100 on the spawn and profile,
+    // g_scribeInProgress; then the original HandleRButtonUp, then everything back. Of the spoof only the class
+    // reaches the original (its casting check's BardCastBard); the item type 31 the tome path also writes is not
+    // read there (rof2decomp export CInvSlot.c and the disassembly @0x697250).
+    scribe_in_progress_ = true;
+    c.right_click_item_original(slot, {}, target_class);
+    scribe_in_progress_ = false;
+}
+
 void NmsExtension::heartbeat(GameConnection& c) {
     if (c.state() != ConnectionState::InZone) {
         cast_class_ = 0;
+        show_book_pending_ = book_opened_by_scribe_ = false;
+        scribe_.reset();
         return;
     }
     const std::uint32_t mask = class_mask(c);
@@ -480,6 +510,23 @@ void NmsExtension::heartbeat(GameConnection& c) {
     }
     // SpellCooldownETA (+0x3cc) zeroed whenever no cast is running: no global spell recovery.
     if (!spells.casting.casting()) c.clear_spell_recovery();
+    // The scribe path (§3.4, MQ2Pulse): the book opened for a scroll sits the player down on the next frame,
+    // standing up again closes it, and the click is replayed once its 100 ms are up.
+    const auto& me = c.player_status();
+    if (show_book_pending_) {
+        show_book_pending_ = false;
+        if (me.stand_state != 110) c.send_command("/sit");
+        book_opened_by_scribe_ = true;
+    }
+    if (book_opened_by_scribe_ && me.stand_state != 110) {
+        book_opened_by_scribe_ = false;
+        c.close_spell_book();
+    }
+    if (scribe_ && GameConnection::now_ms() >= scribe_->due_ms) {
+        const PendingScribe p = *scribe_;
+        scribe_.reset();
+        if (c.world().player()) run_scribe(c, p.slot, p.target_class);
+    }
     // The 0x140f report, once after the mask arrived (key 1).
     if (!report_sent_ && c.server_stats().count(1) && c.world().player_id != 0) {
         c.send_zone_packet(encode_client_report(options_.report_flags));

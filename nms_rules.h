@@ -68,6 +68,18 @@ inline bool own_begin_cast_dropped(std::int32_t pc_spells_setting, bool grouped,
 // CharacterZoneClient::CanUseMemorizedSpellSlot detour: 12 gems from level 1.
 inline bool can_use_memorized_spell_slot(std::int32_t gem) { return gem < 12; }
 
+// ---- CInvSlot::HandleRButtonUp detour 0x1010a670 (§3.4): scribing from a right click ----
+// Taken for item type 20 (scroll) or 31 (tome) while isToggleSpellBookOnScribeEnabled (1).
+inline bool scribe_click(std::uint8_t item_type) { return item_type == 20 || item_type == 31; }
+// The class the scribe spoof puts on the spawn and profile: the first class of the item's classes that is in the
+// mask, else of the item's classes; 0 (no spoof) when the item has none.
+std::uint8_t scribe_class(std::uint32_t item_classes, std::uint32_t mask);
+// The instant tome path: type 31, or a type-20 item whose name holds Tome, tome, Skill, skill, Discipline or
+// discipline (strstr, case as listed).
+bool scribe_is_tome(std::uint8_t item_type, const std::string& name);
+// The delayed path's wait between opening the book and the replayed click (SCRIBE_DURATION_MS).
+inline constexpr std::int64_t kScribeDelayMs = 100;
+
 // The Heartbeat's cast spoof (FUN_1016b670, §3.3): while a spell whose Bard level is 255 is being cast, the visible
 // class is the first mask class (low bit first) with a level 1..254 for it; 0 when none (no spoof).
 std::uint32_t cast_spoof_class(const LevelOf& orig, std::uint32_t mask);
