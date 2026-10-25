@@ -217,6 +217,24 @@ void DisciplineTimers::set(std::int32_t id, std::uint32_t ready) {
     timers_.emplace_back(id, ready);
 }
 
+std::optional<std::int32_t> discipline_band(std::uint32_t spell_id) {
+    struct Band {
+        std::uint32_t spell;
+        std::int32_t timer;
+    };
+    static constexpr Band kBands[] = {
+#include "plugins/nms/nms_discipline_bands.inc"
+    };
+    std::optional<std::int32_t> out; // the loop writes each entry in turn: the last one for a spell wins
+    for (const Band& b : kBands)
+        if (b.spell == spell_id) out = b.timer;
+    return out;
+}
+
+std::string discipline_not_ready_line(std::string_view name, std::uint32_t seconds) {
+    return std::format("{} will be ready in {} seconds.", name, static_cast<std::int32_t>(seconds));
+}
+
 // FUN_100ecf40.
 void Cooldowns::set(std::size_t slot, float seconds, std::uint32_t now_ms) {
     if (slot >= seconds_.size()) return;

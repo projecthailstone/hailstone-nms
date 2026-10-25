@@ -128,6 +128,12 @@ private:
     std::vector<std::pair<std::int32_t, std::uint32_t>> timers_;
 };
 
+// NMSDiscTimers_ApplyBands (FUN_10107460): the CARecastTimerID the patch writes into a discipline (its table of 152
+// at 0x10268a30, applied in game whenever spell 4514's is not 23); nullopt for the spells it leaves alone.
+std::optional<std::int32_t> discipline_band(std::uint32_t spell_id);
+// The doCombatAbility detour's refusal for a timer id >= 20 still running (WriteChatf at 0x10109820).
+std::string discipline_not_ready_line(std::string_view name, std::uint32_t seconds);
+
 // ---- OP_SkillTimers 0x1339 (§4.1) ----
 // {u32 backstab, bash, kick, strike, frenzy, autoskill_bitmask}, the seconds left (EQEmu SkillTimers_Struct from
 // PTimerList::GetRemainingTime; the server sends 4 more bytes).

@@ -91,6 +91,11 @@ public:
     bool song_blocked(const net::GameConnection& c, std::uint8_t raw_bard_level) const override;
     bool own_begin_cast_line(const net::GameConnection& c, const game::SpellData& s) const override;
     std::optional<bool> can_use_gem(const net::GameConnection& c, int gem) const override;
+    // The patch's discipline timers (§2a): the band table moves CARecastTimerID, ids >= 20 run on its own map.
+    std::int32_t combat_ability_timer(const net::GameConnection& c, const game::SpellData& s) const override;
+    std::optional<std::uint32_t> discipline_reuse_timer(const net::GameConnection& c, std::int32_t id) const override;
+    std::optional<bool> before_combat_ability(net::GameConnection& c, const game::SpellData& s) override;
+    void after_combat_ability(net::GameConnection& c, const game::SpellData& s, bool used) override;
     bool can_use_all_items(const net::GameConnection& c) const override { return class_mask(c) != 0; }
     std::string class_desc(const net::GameConnection& c, std::int32_t id) const override;
     std::string guild_member_class(const net::GameConnection& c, std::uint32_t class_value) const override;
@@ -144,6 +149,7 @@ private:
     SkillTimers skill_timers_;
     Cooldowns cooldowns_;
     DisciplineTimers disc_timers_;
+    std::uint32_t combat_now_ = 0; // the doCombatAbility detour's time, taken before the original runs
     std::optional<WaypointList> waypoints_;
     std::uint32_t waypoint_serial_ = 0;
     std::int64_t zone_in_ms_ = 0;  // for the "non multiclass server" warning

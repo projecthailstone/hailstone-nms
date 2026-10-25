@@ -119,6 +119,32 @@ std::optional<bool> NmsExtension::can_use_gem(const GameConnection& c, int gem) 
     return can_use_memorized_spell_slot(gem);
 }
 
+std::int32_t NmsExtension::combat_ability_timer(const GameConnection& c, const game::SpellData& s) const {
+    if (auto band = discipline_band(s.id)) return *band;
+    return ServerExtension::combat_ability_timer(c, s);
+}
+
+std::optional<std::uint32_t> NmsExtension::discipline_reuse_timer(const GameConnection&, std::int32_t id) const {
+    // The GetDisciplineReuseTimer detour (FUN_10109780): ids >= 20 from its map, 0 (ready) when absent.
+    if (!DisciplineTimers::handles(id)) return std::nullopt;
+    return disc_timers_.get(id);
+}
+
+std::optional<bool> NmsExtension::before_combat_ability(GameConnection& c, const game::SpellData& s) {
+    // The doCombatAbility detour (FUN_10109820) for a timer id >= 20: refused while its map timer runs.
+    combat_now_ = static_cast<std::uint32_t>(std::time(nullptr));
+    const std::int32_t timer = combat_ability_timer(c, s);
+    if (!DisciplineTimers::handles(timer) || disc_timers_.ready(timer, combat_now_)) return std::nullopt;
+    c.ui_message(discipline_not_ready_line(s.name, disc_timers_.remaining(timer, combat_now_)));
+    return false;
+}
+
+void NmsExtension::after_combat_ability(GameConnection& c, const game::SpellData& s, bool used) {
+    // ... and stamped now + RecastTime / 1000 when the original used it.
+    const std::int32_t timer = combat_ability_timer(c, s);
+    if (used && DisciplineTimers::handles(timer)) disc_timers_.set(timer, combat_now_ + s.recast_time / 1000);
+}
+
 std::string NmsExtension::class_desc(const GameConnection& c, std::int32_t id) const {
     auto desc = [](std::int32_t k) { return game::class_name(static_cast<std::uint32_t>(k)); };
     // The character select slots: the masks the DLL took from OP_SendCharInfo's Deity (block +0xf3) by slot.
