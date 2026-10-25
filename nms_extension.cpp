@@ -147,6 +147,15 @@ void NmsExtension::after_combat_ability(GameConnection& c, const game::SpellData
     if (used && DisciplineTimers::handles(timer)) disc_timers_.set(timer, combat_now_ + s.recast_time / 1000);
 }
 
+std::optional<std::string> NmsExtension::combat_effect_label(const GameConnection& c) const {
+    for (const auto& b : c.spell_state().buffs) {
+        if (b.empty()) continue;
+        const game::SpellData* s = c.spell_table().get(b.spell);
+        if (s && DisciplineTimers::handles(combat_ability_timer(c, *s))) return s->name;
+    }
+    return std::string("No Effect");
+}
+
 std::string NmsExtension::class_desc(const GameConnection& c, std::int32_t id) const {
     auto desc = [](std::int32_t k) { return game::class_name(static_cast<std::uint32_t>(k)); };
     // The character select slots: the masks the DLL took from OP_SendCharInfo's Deity (block +0xf3) by slot.

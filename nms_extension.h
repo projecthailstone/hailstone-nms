@@ -96,6 +96,9 @@ public:
     std::optional<std::uint32_t> discipline_reuse_timer(const net::GameConnection& c, std::int32_t id) const override;
     std::optional<bool> before_combat_ability(net::GameConnection& c, const game::SpellData& s) override;
     void after_combat_ability(net::GameConnection& c, const game::SpellData& s, bool used) override;
+    // The CCombatAbilityWnd OnProcessFrame vtable hook (§3.3): the label names the first buff whose spell has a
+    // timer id >= 20, else "No Effect".
+    std::optional<std::string> combat_effect_label(const net::GameConnection& c) const override;
     bool can_use_all_items(const net::GameConnection& c) const override { return class_mask(c) != 0; }
     std::string class_desc(const net::GameConnection& c, std::int32_t id) const override;
     std::string guild_member_class(const net::GameConnection& c, std::uint32_t class_value) const override;
