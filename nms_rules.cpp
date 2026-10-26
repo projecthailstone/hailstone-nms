@@ -315,4 +315,11 @@ bool hide_patch_line(std::string_view text) {
     return has("launching the welcome screen");
 }
 
+bool xtarget_server_pet_slot(std::uint32_t slot_type, std::uint32_t spawn_id, std::uint32_t spawn_owner_id,
+                             std::uint32_t player_id, const std::vector<std::uint32_t>& pet_ids) {
+    if (slot_type > 1 || spawn_id == 0 || spawn_id == player_id) return false;
+    if (player_id != 0 && spawn_owner_id == player_id) return true;
+    return std::find(pet_ids.begin(), pet_ids.end(), spawn_id) != pet_ids.end();
+}
+
 } // namespace nmsc::nms

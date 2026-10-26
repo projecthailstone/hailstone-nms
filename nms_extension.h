@@ -47,8 +47,11 @@ struct NmsOptions {
     // The flags of the patch's 0x140f report (plugins/nms/nms_packets.h): not launcher-started, channel 'L',
     // large-address aware, as the shipped eqgame.exe (LAA) under the shipped DLL reports when started directly.
     std::uint32_t report_flags = kReportLargeAddress;
+    // Hailstone: the extended target window leaves out the player's own pets the server puts in its last slots
+    // (nms::xtarget_server_pet_slot); the client option nms_xtarget_hide_pets, on by default.
+    bool xtarget_hide_pets = true;
 };
-// hailstone.ini: nms.auth_key, nms.hardware_id = fixed (default) | none.
+// hailstone.ini: nms.auth_key, nms.hardware_id = fixed (default) | none, nms.xtarget_hide_pets (default true).
 NmsOptions read_options(const Config& config);
 // The same with a saved server's own [NMS] auth_key and hardware_id (core/server_profile.h) over the global keys.
 NmsOptions read_options(const Config& config, const ServerProfile& profile);
@@ -111,6 +114,11 @@ public:
     // The Max / Cur HP, mana and endurance detours (§2c): the server's values (nms::server_vitals).
     game::CharacterVitals character_vitals(const net::GameConnection& c) const override;
     const game::SkillRules* skill_rules() const override;
+    // The server's pet slots (nms::xtarget_server_pet_slot), with nms_xtarget_hide_pets on.
+    bool hide_xtarget_slot(const net::GameConnection& c, int slot) const override;
+    // nms_xtarget_hide_pets (hailstone.ini nms.xtarget_hide_pets).
+    std::optional<int> option(std::string_view name) const override;
+    std::optional<std::pair<std::string, std::string>> set_option(std::string_view name, int value) override;
     // The patch's CInvSlot::HandleRButtonUp detour (§3.4): a right click on a scroll or tome scribes it, opening the
     // spell book and sitting first unless it is a tome or the book is open (heartbeat replays the click 100 ms
     // later). The class / level 100 spoof around the original reaches its casting check only (class_id).

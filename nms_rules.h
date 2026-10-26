@@ -203,4 +203,16 @@ private:
     std::uint32_t autoskill_ = 0;
 };
 
+// ---- the extended target window's pets (an NMS client option, not the patch's) ----
+// The NMS server (Release-NMS-Server zone/client_process.cpp, each stats tic) puts each of the player's pets
+// (petids[i]) that is in no slot into slot 19 - i as a specific NPC and sends that slot with the pet
+// (SendXTargetPacket(slot, pet): OP_XTargetResponse status 1). OP_XTargetResponse carries no type, and the client
+// asked for nothing there, so on this side such a slot keeps the type it had: an auto hater (1), or Empty Target (0)
+// if the player set that. A slot the player set to their pet themselves (Current Target / Add, a specific NPC 3;
+// the Pet role 23) has another type and is the player's own choice. So a slot is the server's pet slot when its
+// type here is 0 or 1 and its spawn is one of the player's pets: a spawn whose owner is the player, or one on the
+// server's pet list (OP_PetList, NMS's several pets).
+bool xtarget_server_pet_slot(std::uint32_t slot_type, std::uint32_t spawn_id, std::uint32_t spawn_owner_id,
+                             std::uint32_t player_id, const std::vector<std::uint32_t>& pet_ids);
+
 } // namespace nmsc::nms

@@ -45,6 +45,7 @@ NmsOptions read_options(const Config& config) {
     NmsOptions o;
     if (auto key = config.get("nms.auth_key")) read_auth_key(o, *key);
     if (auto hw = config.get("nms.hardware_id")) read_hardware_id(o, *hw);
+    o.xtarget_hide_pets = config.get_bool("nms.xtarget_hide_pets", true);
     return o;
 }
 
@@ -205,6 +206,31 @@ const game::SkillRules* NmsExtension::skill_rules() const {
     // The HasSkill / IsAvailable detours (§3.8) and the tracking window's rule.
     static const game::SkillRules kRules{&nms::skill_gate, &nms::skill_spoof_class, &nms::tracking_allowed};
     return &kRules;
+}
+
+// ---------------------------------------------------------------- the extended target window
+
+bool NmsExtension::hide_xtarget_slot(const GameConnection& c, int slot) const {
+    if (!options_.xtarget_hide_pets) return false;
+    const auto& xs = c.xtargets().slots;
+    if (slot < 0 || slot >= static_cast<int>(xs.size())) return false;
+    const game::XTargetSlot& s = xs[static_cast<std::size_t>(slot)];
+    auto it = c.world().spawns.find(s.spawn_id);
+    std::uint32_t owner = it != c.world().spawns.end() ? it->second.pet_owner_id : 0;
+    std::vector<std::uint32_t> pets;
+    for (const game::PetInfo& p : c.pets().list) pets.push_back(p.spawn_id);
+    return nms::xtarget_server_pet_slot(s.type, s.spawn_id, owner, c.world().player_id, pets);
+}
+
+std::optional<int> NmsExtension::option(std::string_view name) const {
+    if (name == "nms_xtarget_hide_pets") return options_.xtarget_hide_pets ? 1 : 0;
+    return std::nullopt;
+}
+
+std::optional<std::pair<std::string, std::string>> NmsExtension::set_option(std::string_view name, int value) {
+    if (name != "nms_xtarget_hide_pets") return std::nullopt;
+    options_.xtarget_hide_pets = value != 0;
+    return std::pair<std::string, std::string>{"nms.xtarget_hide_pets", value != 0 ? "true" : "false"};
 }
 
 // ---------------------------------------------------------------- the connection
