@@ -144,7 +144,7 @@ std::string class_desc(std::int32_t id, const std::function<std::string(std::int
 }
 
 std::string window_title(const std::string& name, std::uint32_t mask) {
-    std::string t = "EverQuest - " + name;
+    std::string t = name;
     if (mask) t += " [" + class_abbrevs(mask) + "]";
     return t;
 }

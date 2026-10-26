@@ -179,7 +179,7 @@ std::string NmsExtension::guild_member_class(const GameConnection& c, std::uint3
 }
 
 std::string NmsExtension::window_title(const GameConnection& c) const {
-    // The Heartbeat's window title ("EverQuest - Name [War/Clr]"), in the zone.
+    // The Heartbeat's window title ("EverQuest - Name [War/Clr]") less "EverQuest - ", in the zone.
     if (c.state() != ConnectionState::InZone || c.character_name().empty()) return {};
     return nms::window_title(c.character_name(), class_mask(c));
 }

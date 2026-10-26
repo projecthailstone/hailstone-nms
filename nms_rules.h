@@ -112,7 +112,8 @@ std::string class_code(std::uint32_t class_id);
 std::string class_desc(std::int32_t id, const std::function<std::string(std::int32_t)>& desc,
                        const std::function<std::uint32_t(std::int32_t)>& slot_mask,
                        const std::function<std::uint32_t(std::int32_t)>& slot_class);
-// The Heartbeat's window title: "EverQuest - <Name> [War/Clr]" ("EverQuest - <Name>" for mask 0).
+// The Heartbeat's window title, "EverQuest - <Name> [War/Clr]", less its "EverQuest - " (this client puts the
+// server's name there, client_window_title): "<Name> [War/Clr]", "<Name>" for mask 0.
 std::string window_title(const std::string& name, std::uint32_t mask);
 // dsp_chat: "Your song ends." is dropped with a non-zero mask that has no Bard.
 inline bool hide_song_ends(std::uint32_t mask) { return mask != 0 && !has_class(mask, kBard); }
