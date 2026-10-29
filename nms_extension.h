@@ -68,6 +68,8 @@ class NmsExtension final : public game::ServerExtension {
 public:
     explicit NmsExtension(NmsOptions options = {}) : options_(options) {}
     const char* name() const override { return "nms"; }
+    // The NMS client patch and server write item ids with 8 hex digits (SAY_LINK_BODY_SIZE 77).
+    bool wide_item_links() const override { return true; }
 
     // ---- the connection (nms_extension.cpp) ----
     bool world_packet(net::GameConnection& c, const net::AppPacket& p) override { return packet(c, p); }
