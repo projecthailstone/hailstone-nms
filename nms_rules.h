@@ -102,19 +102,8 @@ bool tracking_allowed(std::uint8_t class_id, std::uint32_t class_mask, std::uint
 std::uint32_t skill_spoof_class(std::int32_t skill, std::uint32_t mask);
 
 // ---- displays (§3.6, §3.7, §3.10) ----
-// The abbreviations GetClassDesc uses (table 0x10338230): "War", "Clr", ... joined with '/'; "" for mask 0.
-std::string class_abbrevs(std::uint32_t mask);
 // The upper-case codes (GetClassThreeLetterCode / the /who table): "WAR", "CLR", ...; "UNK" outside 1..16.
 std::string class_code(std::uint32_t class_id);
-// CEverQuest::GetClassDesc detour (0x100ef3a0): ids >= 1000 a mask (id - 1000), 200..449 a character select
-// slot (`slot_mask(slot)` its mask, `slot_class(slot)` its original class), < 1 or > 450 class 1, anything else
-// the original (`desc`).
-std::string class_desc(std::int32_t id, const std::function<std::string(std::int32_t)>& desc,
-                       const std::function<std::uint32_t(std::int32_t)>& slot_mask,
-                       const std::function<std::uint32_t(std::int32_t)>& slot_class);
-// The Heartbeat's window title, "EverQuest - <Name> [War/Clr]", less its "EverQuest - " (this client puts the
-// server's name there, client_window_title): "<Name> [War/Clr]", "<Name>" for mask 0.
-std::string window_title(const std::string& name, std::uint32_t mask);
 // dsp_chat: "Your song ends." is dropped with a non-zero mask that has no Bard.
 inline bool hide_song_ends(std::uint32_t mask) { return mask != 0 && !has_class(mask, kBard); }
 // The rest of the dsp_chat detour's drops (FUN_10119d80): the vault's data lines ("VAULTDATA|", which the vault

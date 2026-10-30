@@ -10,8 +10,6 @@ namespace nmsc::nms {
 
 namespace {
 
-constexpr const char* kAbbrevs[16] = {"War", "Clr", "Pal", "Rng", "Shd", "Dru", "Mnk", "Brd",
-                                      "Rog", "Shm", "Nec", "Wiz", "Mag", "Enc", "Bst", "Ber"};
 constexpr const char* kCodes[16] = {"WAR", "CLR", "PAL", "RNG", "SHD", "DRU", "MNK", "BRD",
                                     "ROG", "SHM", "NEC", "WIZ", "MAG", "ENC", "BST", "BER"};
 
@@ -115,38 +113,8 @@ std::uint32_t skill_spoof_class(std::int32_t skill, std::uint32_t mask) {
     }
 }
 
-std::string class_abbrevs(std::uint32_t mask) {
-    std::string out;
-    for (std::uint32_t c = 1; c <= 16; ++c)
-        if (has_class(mask, c)) out += (out.empty() ? "" : "/") + std::string(kAbbrevs[c - 1]);
-    return out;
-}
-
 std::string class_code(std::uint32_t class_id) {
     return class_id >= 1 && class_id <= 16 ? kCodes[class_id - 1] : "UNK";
-}
-
-std::string class_desc(std::int32_t id, const std::function<std::string(std::int32_t)>& desc,
-                       const std::function<std::uint32_t(std::int32_t)>& slot_mask,
-                       const std::function<std::uint32_t(std::int32_t)>& slot_class) {
-    if (id >= 1000) return class_abbrevs(static_cast<std::uint32_t>(id - 1000));
-    if (id >= 200 && id <= 449) {
-        const std::int32_t slot = id - 200;
-        if (std::uint32_t m = slot_mask(slot)) {
-            std::string s = class_abbrevs(m);
-            if (!s.empty()) return s;
-        }
-        std::uint32_t c = slot_class(slot);
-        return desc(c ? static_cast<std::int32_t>(c) : 1);
-    }
-    if (id < 1 || id > 450) return desc(1);
-    return desc(id);
-}
-
-std::string window_title(const std::string& name, std::uint32_t mask) {
-    std::string t = name;
-    if (mask) t += " [" + class_abbrevs(mask) + "]";
-    return t;
 }
 
 std::string level_needed_line(const LevelOf& orig, std::uint32_t mask, std::uint32_t visible) {

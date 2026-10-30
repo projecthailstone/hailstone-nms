@@ -67,18 +67,16 @@ void set_server_module(net::ConnectionOptions& options, ServerModule module, con
 // ---------------------------------------------------------------- classes
 
 std::uint32_t NmsExtension::class_mask(const GameConnection& c) const {
-    // The patch's class mask (g_cauth_bitmask): OP_ServerAuthStats key 1, until it arrives the character set's mask.
-    if (auto it = c.server_stats().find(1); it != c.server_stats().end() && it->second != 0)
-        return static_cast<std::uint32_t>(it->second);
-    return character_class_mask(c, c.character_name());
+    // OP_ServerAuthStats key 1 (set_player_classes in server_stats_changed), until it arrives the character set's
+    // mask (set_character_classes in packet): the core keeps that order.
+    return c.server_class_mask();
 }
 
-std::uint32_t NmsExtension::character_class_mask(const GameConnection& c, const std::string& name) const {
+void NmsExtension::character_sets_changed(GameConnection& c) {
     // Multiclass bit masks from NMS's character sets (OP_SendCharacterSets), by character name.
+    c.clear_character_classes();
     if (const auto& sets = c.character_sets())
-        for (const auto& ch : sets->characters)
-            if (ch.name == name) return ch.classes;
-    return 0;
+        for (const auto& ch : sets->characters) c.set_character_classes(ch.name, ch.classes);
 }
 
 std::optional<bool> NmsExtension::is_spellcaster(const GameConnection& c) const {
@@ -155,34 +153,6 @@ std::optional<std::string> NmsExtension::combat_effect_label(const GameConnectio
         if (s && DisciplineTimers::handles(combat_ability_timer(c, *s))) return s->name;
     }
     return std::string("No Effect");
-}
-
-std::string NmsExtension::class_desc(const GameConnection& c, std::int32_t id) const {
-    auto desc = [](std::int32_t k) { return game::class_name(static_cast<std::uint32_t>(k)); };
-    // The character select slots: the masks the DLL took from OP_SendCharInfo's Deity (block +0xf3) by slot.
-    const auto& chars = c.characters();
-    auto slot_mask = [&](std::int32_t slot) -> std::uint32_t {
-        if (slot < 0 || static_cast<std::size_t>(slot) >= chars.size()) return 0;
-        return character_class_mask(c, chars[static_cast<std::size_t>(slot)].name);
-    };
-    auto slot_class = [&](std::int32_t slot) -> std::uint32_t {
-        if (slot < 0 || static_cast<std::size_t>(slot) >= chars.size()) return 0;
-        return chars[static_cast<std::size_t>(slot)].class_;
-    };
-    return nms::class_desc(id, desc, slot_mask, slot_class);
-}
-
-std::string NmsExtension::guild_member_class(const GameConnection& c, std::uint32_t class_value) const {
-    // EQEmu stores NMS multiclass members as 1000 + the class bit mask, which the patch's GetClassDesc detour shows
-    // as "War/Clr".
-    if (class_value >= 1000) return class_abbrevs(class_value - 1000);
-    return ServerExtension::guild_member_class(c, class_value);
-}
-
-std::string NmsExtension::window_title(const GameConnection& c) const {
-    // The Heartbeat's window title ("EverQuest - Name [War/Clr]") less "EverQuest - ", in the zone.
-    if (c.state() != ConnectionState::InZone || c.character_name().empty()) return {};
-    return nms::window_title(c.character_name(), class_mask(c));
 }
 
 game::CharacterVitals NmsExtension::character_vitals(const GameConnection& c) const {
@@ -413,6 +383,8 @@ void NmsExtension::server_stats_changed(GameConnection& c) {
         return it == stats.end() ? nullptr : &it->second;
     };
     auto clamp = [](std::int64_t v) { return std::clamp<std::int64_t>(v, 0, 0x7ffffffe); };
+    // Key 1 is the patch's class mask (g_cauth_bitmask); 0 falls back to the character set's.
+    if (const auto* v = stat(1)) c.set_player_classes(static_cast<std::uint32_t>(*v));
     net::PlayerStatus& ps = c.player_status_mut();
     if (const auto* v = stat(2)) ps.hp = clamp(*v);
     if (const auto* v = stat(5)) ps.max_hp = clamp(*v);
@@ -495,6 +467,9 @@ std::optional<std::vector<std::string>> NmsExtension::who_lines(const GameConnec
 bool NmsExtension::packet(GameConnection& c, const net::AppPacket& p) {
     const std::int64_t now = GameConnection::now_ms();
     switch (net::from_wire(p.opcode)) {
+    case Op::SendCharacterSets:
+        character_sets_changed(c); // the core decoded it first (GameConnection::character_sets)
+        return false;
     case Op::PersonalLootList:
         // The Personal Loot window's OnList (plugins/nms/nms_loot.h): the rows a rule covers are answered now.
         // Passed on (the core keeps the list too).

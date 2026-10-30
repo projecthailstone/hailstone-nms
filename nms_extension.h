@@ -87,8 +87,9 @@ public:
                                                       const net::WhoResponse& r) const override;
 
     // ---- classes (nms_extension.cpp) ----
-    std::uint32_t class_mask(const net::GameConnection& c) const override;
-    std::uint32_t character_class_mask(const net::GameConnection& c, const std::string& name) const override;
+    // The patch's class mask (g_cauth_bitmask): the core's (GameConnection::server_class_mask), which this extension
+    // sets from OP_ServerAuthStats key 1 and the character sets (OP_SendCharacterSets).
+    std::uint32_t class_mask(const net::GameConnection& c) const;
     std::uint8_t cast_class(const net::GameConnection&) const override { return cast_class_; }
     std::optional<bool> is_spellcaster(const net::GameConnection& c) const override;
     std::optional<std::uint8_t> spell_level_needed(const net::GameConnection& c, const game::SpellData& spell,
@@ -105,9 +106,10 @@ public:
     // timer id >= 20, else "No Effect".
     std::optional<std::string> combat_effect_label(const net::GameConnection& c) const override;
     bool can_use_all_items(const net::GameConnection& c) const override { return class_mask(c) != 0; }
-    std::string class_desc(const net::GameConnection& c, std::int32_t id) const override;
-    std::string guild_member_class(const net::GameConnection& c, std::uint32_t class_value) const override;
-    std::string window_title(const net::GameConnection& c) const override;
+    // EQEmu stores NMS multiclass guild members as 1000 + the class mask.
+    std::uint32_t guild_member_classes(const net::GameConnection&, std::uint32_t class_value) const override {
+        return class_value >= 1000 ? class_value - 1000 : 0;
+    }
     // The patch NOPs the class test (0x45ea0f, 75 10 -> 90 90): moving breaks Hide unless sneaking, any class.
     std::uint8_t hide_check_class(const net::GameConnection&, std::uint8_t) const override { return 9; }
     bool aa_any_level(const net::GameConnection&) const override { return true; }
@@ -177,6 +179,8 @@ public:
 
 private:
     bool packet(net::GameConnection& c, const net::AppPacket& p);
+    // OP_SendCharacterSets: the characters' class masks into the core (GameConnection::set_character_classes).
+    void character_sets_changed(net::GameConnection& c);
     void send_cauth(net::GameConnection& c);
     void ensure_loot_rules(net::GameConnection& c);
 
