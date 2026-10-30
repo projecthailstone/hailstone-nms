@@ -36,7 +36,7 @@ std::uint32_t& loot_reset_seen() {
 // The connection's NMS extension when it runs (an NMS server), else null.
 NmsExtension* ext(app::EqHost& host) {
     if (!host.conn || !host.conn->nms_mode()) return nullptr;
-    return dynamic_cast<NmsExtension*>(&host.conn->server_ext());
+    return dynamic_cast<NmsExtension*>(host.conn->builtin_extension());
 }
 
 // WaypointsWnd::WaypointsWnd: the continent names by category id (0-based); others are "Unknown". (The patch's

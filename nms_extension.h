@@ -69,7 +69,7 @@ public:
     explicit NmsExtension(NmsOptions options = {}) : options_(options) {}
     const char* name() const override { return "nms"; }
     // The NMS client patch and server write item ids with 8 hex digits (SAY_LINK_BODY_SIZE 77).
-    bool wide_item_links() const override { return true; }
+    bool wide_item_links(const net::GameConnection&) const override { return true; }
 
     // ---- the connection (nms_extension.cpp) ----
     bool world_packet(net::GameConnection& c, const net::AppPacket& p) override { return packet(c, p); }
@@ -117,12 +117,13 @@ public:
     std::vector<std::uint8_t> max_vitals_classes(const net::GameConnection& c, std::uint8_t class_id) const override;
     // The Max / Cur HP, mana and endurance detours (§2c): the server's values (nms::server_vitals).
     game::CharacterVitals character_vitals(const net::GameConnection& c) const override;
-    const game::SkillRules* skill_rules() const override;
+    const game::SkillRules* skill_rules(const net::GameConnection&) const override;
     // The server's pet slots (nms::xtarget_server_pet_slot), with nms_xtarget_hide_pets on.
     bool hide_xtarget_slot(const net::GameConnection& c, int slot) const override;
     // nms_xtarget_hide_pets (hailstone.ini nms.xtarget_hide_pets).
-    std::optional<int> option(std::string_view name) const override;
-    std::optional<std::pair<std::string, std::string>> set_option(std::string_view name, int value) override;
+    std::optional<int> option(const net::GameConnection&, std::string_view name) const override;
+    std::optional<std::pair<std::string, std::string>> set_option(net::GameConnection&, std::string_view name,
+                                                                  int value) override;
     // The patch's CInvSlot::HandleRButtonUp detour (§3.4): a right click on a scroll or tome scribes it, opening the
     // spell book and sitting first unless it is a tome or the book is open (heartbeat replays the click 100 ms
     // later). The class / level 100 spoof around the original reaches its casting check only (class_id).

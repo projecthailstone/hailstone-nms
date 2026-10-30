@@ -172,9 +172,17 @@ std::vector<std::uint8_t> NmsExtension::max_vitals_classes(const GameConnection&
     return out;
 }
 
-const game::SkillRules* NmsExtension::skill_rules() const {
+const game::SkillRules* NmsExtension::skill_rules(const GameConnection&) const {
     // The HasSkill / IsAvailable detours (§3.8) and the tracking window's rule.
-    static const game::SkillRules kRules{&nms::skill_gate, &nms::skill_spoof_class, &nms::tracking_allowed};
+    static const game::SkillRules kRules{
+        nullptr,
+        [](const void*, std::int32_t skill, std::uint32_t mask, std::int32_t profile_skill) {
+            return nms::skill_gate(skill, mask, profile_skill);
+        },
+        [](const void*, std::int32_t skill, std::uint32_t mask) { return nms::skill_spoof_class(skill, mask); },
+        [](const void*, std::uint8_t class_id, std::uint32_t mask, std::uint32_t skill) {
+            return nms::tracking_allowed(class_id, mask, skill);
+        }};
     return &kRules;
 }
 
@@ -192,12 +200,13 @@ bool NmsExtension::hide_xtarget_slot(const GameConnection& c, int slot) const {
     return nms::xtarget_server_pet_slot(s.type, s.spawn_id, owner, c.world().player_id, pets);
 }
 
-std::optional<int> NmsExtension::option(std::string_view name) const {
+std::optional<int> NmsExtension::option(const GameConnection&, std::string_view name) const {
     if (name == "nms_xtarget_hide_pets") return options_.xtarget_hide_pets ? 1 : 0;
     return std::nullopt;
 }
 
-std::optional<std::pair<std::string, std::string>> NmsExtension::set_option(std::string_view name, int value) {
+std::optional<std::pair<std::string, std::string>> NmsExtension::set_option(GameConnection&, std::string_view name,
+                                                                           int value) {
     if (name != "nms_xtarget_hide_pets") return std::nullopt;
     options_.xtarget_hide_pets = value != 0;
     return std::pair<std::string, std::string>{"nms.xtarget_hide_pets", value != 0 ? "true" : "false"};
