@@ -32,8 +32,33 @@ Options read_options(const std::vector<const Ini*>& layers, std::vector<std::str
             const std::string v = lower(*x);
             o.xtarget_hide_pets = !(v == "0" || v == "false" || v == "off" || v == "no");
         }
+        if (auto v = ini.get("NMS", "skip_servers")) o.skip_servers = split_words(*v);
     }
     return o;
+}
+
+bool server_matches(std::string_view name, std::string_view world, const std::vector<std::string>& words) {
+    const std::string n = lower(std::string(name)), w = lower(std::string(world));
+    for (const std::string& word : words) {
+        const std::string k = lower(word);
+        if (!k.empty() && (n.find(k) != std::string::npos || w.find(k) != std::string::npos)) return true;
+    }
+    return false;
+}
+
+std::vector<std::string> split_words(std::string_view list) {
+    std::vector<std::string> out;
+    std::size_t at = 0;
+    while (at <= list.size()) {
+        std::size_t end = list.find(',', at);
+        if (end == std::string_view::npos) end = list.size();
+        std::string_view part = list.substr(at, end - at);
+        while (!part.empty() && part.front() == ' ') part.remove_prefix(1);
+        while (!part.empty() && part.back() == ' ') part.remove_suffix(1);
+        if (!part.empty()) out.emplace_back(part);
+        at = end + 1;
+    }
+    return out;
 }
 
 std::string fov_command(const std::string& args, float& max_camera_distance) {

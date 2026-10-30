@@ -22,7 +22,10 @@ as its own artifact, `hailstone-nms-<platform>`. The plugin is not part of the d
   `plugins/<platform>/nms/` (`linux-x64`, `windows-x64`, `macos-arm64` ...) and the windows in `plugins/nms/ui/`.
   They land in `servers/<profile>/plugins/nms/`, and the server's copy wins over a player's.
 
-It loads on any server and does nothing until it sees an NMS server.
+It loads on any server and does nothing until it sees an NMS server. Project Triune runs a newer build of the same
+patch and sends the same packets; it has its own plugin (docs/plugins/projecttriune.md), and this one stands down on
+a server whose saved name or world name contains a word of `skip_servers` (default `triune`): it then touches no
+packet, so that plugin sees them.
 
 ## What it needs
 
@@ -111,7 +114,7 @@ NMS server and outside the game. The windows keep their own settings in the pack
 
 | File | What |
 |---|---|
-| `plugins/nms/nms.ini` | `[NMS] auth_key` (the server's Custom:ServerAuthKey; default the current patch's, 352236586; 0 sends no OP_CAuth), `hardware_id = fixed \| none` (the login checksum rewrite), `xtarget_hide_pets = 1 \| 0` |
+| `plugins/nms/nms.ini` | `[NMS] skip_servers` (a comma list, default `triune`: the servers it leaves to their own plugin), `auth_key` (the server's Custom:ServerAuthKey; default the current patch's, 352236586; 0 sends no OP_CAuth), `hardware_id = fixed \| none` (the login checksum rewrite), `xtarget_hide_pets = 1 \| 0` |
 | `servers/<profile>/server.ini` `[NMS]` | `auth_key`, `hardware_id` as builds before the plugin kept them for a server; read, over the plugin's own |
 | `servers/<profile>/plugin-config/nms/nms.ini` | the same keys for one server, over both |
 | `servers/<profile>/characters/<world>/<character>/plugin-config/nms/itemrules.ini` | the character's Personal Loot rules (the patch's `<name>_itemrules.ini`); one in the character's folder from before the plugin is moved here once |

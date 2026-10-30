@@ -169,8 +169,17 @@ void Nms::initialize() {
 
 void Nms::shutdown() {}
 
+// Whether this login's server is one the plugin serves: not one of Options::skip_servers (a server that sends the
+// same packets and has its own plugin). Unknown (no server_info yet): yes, as before there was a check.
+bool Nms::for_this_server() const {
+    NmscServer s{};
+    s.size = sizeof s;
+    if (!nmsc || !nmsc->server_info || !nmsc->server_info(nmsc->host, &s)) return true;
+    return !server_matches(s.name, s.world, options.skip_servers);
+}
+
 void Nms::activate() {
-    if (detected_) return;
+    if (detected_ || !for_this_server()) return;
     detected_ = true;
     nmsc->set_active(nmsc->host, 1);
     // The patch's switches: 8-digit item ids in links (SAY_LINK_BODY_SIZE 77); its class test NOPed (0x45ea0f,
@@ -270,6 +279,9 @@ void Nms::zone_server_changed() {
 // ---------------------------------------------------------------- packets
 
 bool Nms::packet(int stream, int direction, NmscPacket& p) {
+    // On another server's login (one that sends the same packets and has its own plugin) nothing is touched, so that
+    // plugin sees them.
+    if (!for_this_server()) return false;
     std::span<std::byte> data(reinterpret_cast<std::byte*>(p.data), p.size);
     if (direction == NMSC_OUT) {
         // The NMS patch's CRC rewrite (nms_packets.h), on an NMS world only (OP_SendCharacterSets came first).

@@ -9,6 +9,9 @@ Docker stack (NMS-Release) running:
   docker exec nms-db mariadb -upeq -p"$DB_PASSWORD" peq -N -e "select w.long_name, w.shortname, w.category,
       coalesce(z.expansion, -1) from nms_waypoints w left join zone z on z.short_name = w.shortname
       and z.version = 0 order by w.id" | tools/gen_nms_waypoints.py > plugins/nms/nms_waypoints.inc
+
+plugins/projecttriune/triune_waypoints.inc is the same output (a copy of the NMS server's table until Triune's own
+rows are known); regenerate it the same way with that file as the destination.
 """
 import sys
 

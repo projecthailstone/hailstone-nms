@@ -113,6 +113,8 @@ private:
     void run_scribe(const NmscItemSlot& slot, std::uint8_t target_class);
     bool zone_packet(NmscPacket& p, std::int64_t now);
 
+    bool for_this_server() const;
+
     bool detected_ = false;
     bool server_ack_ = false;            // 0x140f from the server (0x10358f34)
     bool character_sets_seen_ = false;   // the login CRC rewrite waits for them
