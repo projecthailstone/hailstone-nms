@@ -1,12 +1,11 @@
 #pragma once
 
 // The NMS client patch (NMS/dinput8.dll, the MQ2-based "eqgame_dll" the NMS server ships with the game) as rules
-// on top of the stock ports. rof2decomp analysed it statically: notes/nms-dinput8.md (§ numbers below are that
-// note's). On an NMS server the patched client is "the original", so the NMS module (plugins/nms/nms_extension.h)
-// applies these overrides only once the connection detects an NMS server (GameConnection::nms_mode(): the world
-// sent OP_SendCharacterSets, or the zone OP_ServerAuthStats or 0x140f) and only where the patch does (most of them
-// need a non-zero class mask, as the patch's do). Everything here is a pure function so the stock ports keep
-// matching their vectors.
+// on top of the stock client's. rof2decomp analysed it statically: notes/nms-dinput8.md (§ numbers below are that
+// note's). On an NMS server the patched client is "the original", so the NMS plugin (nms_plugin.h) applies these
+// only once it has seen an NMS server (the world sent OP_SendCharacterSets, or the zone OP_ServerAuthStats or 0x140f)
+// and only where the patch does (most of them need a non-zero class mask, as the patch's do). Everything here is a
+// pure function of its arguments.
 //
 // The class mask: bit c-1 = class c (Warrior bit 0 .. Berserker bit 15). NMS characters stay class 8 (Bard) in the
 // profile and spawn; the patch spoofs the class only around particular calls.
@@ -20,11 +19,7 @@
 #include <string_view>
 #include <vector>
 
-#include "game/server_ext.h"
-
-namespace nmsc::net { struct WhoResponse; }
-
-namespace nmsc::nms {
+namespace nms {
 
 inline constexpr std::uint32_t kBard = 8;
 // FUN_10109d80 / FUN_10167bc0 / FUN_1011c6c0 and the IsSpellcaster detours: classes 2,3,4,5,6,8 and 10..15.
@@ -93,7 +88,7 @@ std::uint32_t cast_spoof_class(const LevelOf& orig, std::uint32_t mask);
 // Tracking without Ranger, Druid or Bard in a non-zero mask; nullopt = go on.
 std::optional<bool> skill_gate(std::int32_t skill, std::uint32_t mask, std::int32_t profile_skill);
 
-// The tracking window's skill check (game::tracking_allowed) under the patch: with a class mask, Tracking needs
+// The tracking window's skill check (the client's tracking rule) under the patch: with a class mask, Tracking needs
 // Ranger, Druid or Bard in it (HasSkill's gate above); then the skill, as stock. A zero mask (any other server)
 // gives the stock rule.
 bool tracking_allowed(std::uint8_t class_id, std::uint32_t class_mask, std::uint32_t tracking_skill);
@@ -102,19 +97,8 @@ bool tracking_allowed(std::uint8_t class_id, std::uint32_t class_mask, std::uint
 std::uint32_t skill_spoof_class(std::int32_t skill, std::uint32_t mask);
 
 // ---- displays (§3.6, §3.7, §3.10) ----
-// The abbreviations GetClassDesc uses (table 0x10338230): "War", "Clr", ... joined with '/'; "" for mask 0.
-std::string class_abbrevs(std::uint32_t mask);
 // The upper-case codes (GetClassThreeLetterCode / the /who table): "WAR", "CLR", ...; "UNK" outside 1..16.
 std::string class_code(std::uint32_t class_id);
-// CEverQuest::GetClassDesc detour (0x100ef3a0): ids >= 1000 a mask (id - 1000), 200..449 a character select
-// slot (`slot_mask(slot)` its mask, `slot_class(slot)` its original class), < 1 or > 450 class 1, anything else
-// the original (`desc`).
-std::string class_desc(std::int32_t id, const std::function<std::string(std::int32_t)>& desc,
-                       const std::function<std::uint32_t(std::int32_t)>& slot_mask,
-                       const std::function<std::uint32_t(std::int32_t)>& slot_class);
-// The Heartbeat's window title, "EverQuest - <Name> [War/Clr]", less its "EverQuest - " (this client puts the
-// server's name there, client_window_title): "<Name> [War/Clr]", "<Name>" for mask 0.
-std::string window_title(const std::string& name, std::uint32_t mask);
 // dsp_chat: "Your song ends." is dropped with a non-zero mask that has no Bard.
 inline bool hide_song_ends(std::uint32_t mask) { return mask != 0 && !has_class(mask, kBard); }
 // The rest of the dsp_chat detour's drops (FUN_10119d80): the vault's data lines ("VAULTDATA|", which the vault
@@ -132,8 +116,16 @@ std::string level_needed_line(const LevelOf& orig, std::uint32_t mask, std::uint
 std::optional<std::uint8_t> list_level(const LevelOf& orig, std::uint32_t mask);
 
 // The reformatted /who (FUN_10198eb0, who_multiclass.cpp): "[Name] - [Level CLASSES (Race)] ZONE: zone * GM *",
-// "[Name] - [ANONYMOUS]..." for 5024, " <ROLEPLAY>" for 5023, then the player count line.
-std::vector<std::string> format_who(const net::WhoResponse& r);
+// "[Name] - [ANONYMOUS]..." for 5024, " <ROLEPLAY>" for 5023, then the player count line. `zone_name` gives a zone's
+// short name by id ("" unknown).
+struct WhoEntry {
+    std::string name;
+    std::uint32_t class_value = 0; // a class id, or (NMS) a class mask
+    std::uint32_t level = 0, race = 0, zone_id = 0;
+    std::uint32_t format = 0, rank_string = 0, zone_string = 0; // eqstr ids
+};
+using ZoneNameFn = std::function<std::string(std::uint32_t zone_id)>;
+std::vector<std::string> format_who(const std::vector<WhoEntry>& entries, const ZoneNameFn& zone_name);
 
 // ---- the discipline timers >= 20 (§2a GetDisciplineReuseTimer / SetDisciplineReuseTimer / doCombatAbility) ----
 // The stock array holds timer ids 0..19; the patch keeps ids >= 20 in a map (0 = ready), ready times in seconds.
@@ -155,8 +147,11 @@ private:
 // Max_Endurance and Cur_Endurance return OP_ServerAuthStats key 5 / 2 / 6 / 3 / 7 / 4 when the patch's stat map has
 // it, whatever the arguments and the EQ_Character; else the original. The 64-bit value as a signed compare: 0x7ffffffe
 // and above give 0x7ffffffe, anything else its low 32 bits (so a negative value wraps). No lower clamp, no 10000000
-// cap (the original's Max_HP / Cur_HP have one), nothing stored.
-game::CharacterVitals server_vitals(const std::map<std::uint32_t, std::int64_t>& stats);
+// cap (the original's Max_HP / Cur_HP have one), nothing stored. nullopt: the original's.
+struct Vitals {
+    std::optional<std::int32_t> max_hp, cur_hp, max_mana, cur_mana, max_endurance, cur_endurance;
+};
+Vitals server_vitals(const std::map<std::uint32_t, std::int64_t>& stats);
 
 // NMSDiscTimers_ApplyBands (FUN_10107460): the CARecastTimerID the patch writes into a discipline (its table of 152
 // at 0x10268a30, applied in game whenever spell 4514's is not 23); nullopt for the spells it leaves alone.
@@ -215,4 +210,4 @@ private:
 bool xtarget_server_pet_slot(std::uint32_t slot_type, std::uint32_t spawn_id, std::uint32_t spawn_owner_id,
                              std::uint32_t player_id, const std::vector<std::uint32_t>& pet_ids);
 
-} // namespace nmsc::nms
+} // namespace nms

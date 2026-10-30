@@ -1,13 +1,13 @@
 // The shipped NMS patch's Dimensional Pocket Vault: its VAULTDATA parser (FUN_10199a20, FUN_1019bed0). See
 // nms_vault.h.
 
-#include "plugins/nms/nms_vault.h"
+#include "nms_vault.h"
 
 #include <algorithm>
 #include <cstdlib>
 #include <string>
 
-namespace nmsc::nms {
+namespace nms {
 
 namespace {
 
@@ -152,4 +152,4 @@ bool Vault::on_chat(std::string_view line) {
     return true;
 }
 
-} // namespace nmsc::nms
+} // namespace nms
