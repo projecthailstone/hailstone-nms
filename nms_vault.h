@@ -27,7 +27,7 @@
 #include <string_view>
 #include <vector>
 
-namespace nmsc::nms {
+namespace nms {
 
 struct VaultBagItem {
     std::int32_t item_id = 0, quantity = 0, icon = 0, bag_slot = 0; // bag_slot 0-based
@@ -88,4 +88,4 @@ private:
     std::map<std::int32_t, BagWindow> bags_;
 };
 
-} // namespace nmsc::nms
+} // namespace nms

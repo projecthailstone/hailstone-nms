@@ -1,122 +1,498 @@
-// The NMS module's commands and ImGui windows: the patch's /fov, the Personal Loot window's Loot tab and the waypoint
-// window, each when no Lua window stands in for it.
+// The NMS plugin's functions for its Lua windows (ui/<pack>/nms*.lua), called as eq.Plugin("nms").<name>(...). Each
+// gives nil before the plugin has seen an NMS server and outside the game, so the windows show nothing then.
+//
+//   loot()                     the Personal Loot window's state: visible; tab (a tab /loot asked for, once: 0 loot ..
+//                              3 settings, else -1); reset (/loot reset, once); rows {pending, item, icon, qty,
+//                              charges, value, left (seconds), lore, nodrop, augmented, name, npc, rule (the saved
+//                              rule, 0..4)}; settings (nil until the server sent them) {enabled, sellUnder, timeout,
+//                              defer, report}; history (newest first) {item, icon, qty, copper, age (seconds), action
+//                              (1 kept, 2 sold, 3 destroyed), name, npc}; localHistory (newest first) {name, npc, qty,
+//                              rule, age}; rules {id, type, name}; rulesFile
+//   loot_send(action [, pending, item, value])   an OP_PersonalLootAction (PersonalLootActionType)
+//   loot_rule(item, name, type)  sets (type 1..4) or removes (0) an item rule; saved at once
+//   loot_window(op [, value])  "show" (value true / false), "reload" (reread the rules file), "clearHistory", "prefs"
+//                              (value {autoOpen, autoClose, pinned, locked, countdown, sound}, the window's settings)
+//   autoplay()                 the Multiclass Autoplay Console (FUN_1000a430): console (nil until the UI gave its saved
+//                              state); rows: for each of the ten auto-skills whose classes meet the character's (the
+//                              class mask, else its class), {name, enabled (its autoskill bit), left (seconds),
+//                              fraction (left / the longest seen)}
+//   autoplay_console(shown)    shows or hides the console (the UI's saved state, or its close box)
+//   autoskill(name, enable)    a console check box: "/say #autoskill <name> enable|disable" (HideDoCommand)
+//   cooldowns()                the "Autoplay Cooldowns" window's rows (FUN_1000a960): for each auto-skill whose
+//                              autoskill bit is set and whose classes meet the character's, {name, left, fraction}
+//   vault()                    the Dimensional Pocket Vault (nms_vault.h): shown; page (1..9); labels (the page
+//                              buttons); first, last (the page's slots); slots[slot] = {item, icon, name, bag (its
+//                              size, 0 not a bag), contents {item, qty, icon, slot, name}}; bags = {{slot, name, size,
+//                              contents}} (the open bag windows); cursor = {name, icon} (the item on the cursor) or nil
+//   vault_say(command)         a vault button's "/say #vault_..." (HideDoCommand); other text is refused
+//   vault_window(op [, slot])  "hide" (the close box), "bag" (a right click on a bag slot: its window opens or
+//                              closes), "closeBag", "inspect" (a right click on an item: its display, with its
+//                              augments), "inspectItem" (an item id: a bag's item)
+//   waypoints()                the waypoint window (the patch's WaypointsWnd): serial (each new list, and /waypoint,
+//                              counts it up: the window shows again); groupEnabled, expeditionEnabled, group,
+//                              autoconfirm; continents (the patch's names by category, 0-based); entries {category,
+//                              id, enabled, name, continent (the server's name), expansion, expansionName, zone}
+//   waypoint_request(id, expedition, group, autoconfirm)   OP_WaypointRequest: travel (id), the expedition, or (id 0)
+//                              the two check boxes' states
 
 #include <algorithm>
-#include <cctype>
-#include <cstdlib>
-#include <format>
+#include <string>
 
-#include <imgui.h>
+#include "nms_plugin.h"
 
-#include "net/game_connection.h"
-#include "plugins/nms/nms_extension.h"
-#include "ui/item_windows.h"
-#include "ui/lua/lua_host.h"
+namespace nms {
 
-namespace nmsc::nms {
+namespace {
 
-std::optional<LootSend> loot_window(PersonalLoot& loot, bool reset, ui::ItemIconCache* icons) {
-    // The Personal Loot window's Loot tab (plugins/nms/nms_loot.h), at the patch's default place and size, for a
-    // UI without nmsloot.lua.
-    std::optional<LootSend> act;
-    if (!loot.visible()) return act;
-    const std::int64_t now = net::GameConnection::now_ms();
-    static const ImVec4 kDim{0.62f, 0.64f, 0.68f, 1.0f}; // the item windows' dim text
-    const float em = ImGui::GetFontSize();
-    ImGui::SetNextWindowPos(ImVec2(80, 80), reset ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(760, 380), reset ? ImGuiCond_Always : ImGuiCond_FirstUseEver);
-    const auto rows = loot.visible_rows(now);
-    const std::string title = rows.empty() ? "Personal Loot###nmsc_ploot"
-                                           : std::format("Personal Loot ({})###nmsc_ploot", rows.size());
-    bool open = true;
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse;
-    if (loot.prefs.locked) flags |= ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize;
-    if (ImGui::Begin(title.c_str(), &open, flags)) {
-        if (rows.empty()) ImGui::TextDisabled("No loot waiting. Kill something.");
-        for (const PersonalLoot::Row* r : rows) {
-            ImGui::PushID(static_cast<int>(r->d.pending_id));
-            if (icons) icons->draw(r->d.icon, em * 1.6f, r->d.item_name.c_str());
-            ImGui::SameLine();
-            ImGui::Text("%s%s", r->d.item_name.c_str(),
-                        r->d.quantity > 1 ? std::format(" x{}", r->d.quantity).c_str() : "");
-            ImGui::SameLine();
-            ImGui::TextColored(kDim, "(%s, %s)", r->d.npc_name.c_str(), loot_money(r->d.sell_value).c_str());
-            ImGui::SameLine();
-            if (ImGui::SmallButton("Keep")) act = LootSend{net::kLootActionKeep, r->d.pending_id, 0, 0};
-            ImGui::SameLine();
-            if (ImGui::SmallButton(r->d.sell_value ? "Sell" : "Destroy"))
-                act = LootSend{net::kLootActionSell, r->d.pending_id, 0, 0};
-            ImGui::SameLine();
-            if (ImGui::SmallButton("Always Keep")) {
-                loot.set_rule(r->d.item_id, r->d.item_name, LootRule::AlwaysKeep);
-                act = LootSend{net::kLootActionKeep, r->d.pending_id, 0, 0};
-            }
-            ImGui::SameLine();
-            if (ImGui::SmallButton("Always Sell")) {
-                loot.set_rule(r->d.item_id, r->d.item_name, LootRule::AlwaysSell);
-                act = LootSend{net::kLootActionSell, r->d.pending_id, 0, 0};
-            }
-            ImGui::PopID();
+// ---- the arguments
+
+std::optional<NmscValue> arg(const NmscArgs* args, std::size_t i) {
+    NmscValue v{};
+    if (!nmsc->arg(nmsc->host, args, i, &v)) return std::nullopt;
+    return v;
+}
+
+std::int64_t arg_int(const NmscArgs* args, std::size_t i, std::int64_t fallback = 0) {
+    auto v = arg(args, i);
+    if (!v) return fallback;
+    if (v->kind == NMSC_INT || v->kind == NMSC_BOOL) return v->i;
+    if (v->kind == NMSC_FLOAT) return static_cast<std::int64_t>(v->f);
+    return fallback;
+}
+
+bool arg_bool(const NmscArgs* args, std::size_t i) {
+    auto v = arg(args, i);
+    if (!v) return false;
+    if (v->kind == NMSC_BOOL || v->kind == NMSC_INT) return v->i != 0;
+    return v->kind != NMSC_NIL;
+}
+
+std::string arg_string(const NmscArgs* args, std::size_t i) {
+    auto v = arg(args, i);
+    return v && v->kind == NMSC_STRING && v->s ? std::string(v->s) : std::string();
+}
+
+// A table argument's boolean field, when it has one.
+void arg_flag(const NmscArgs* args, std::size_t i, const char* key, bool& out) {
+    NmscValue v{};
+    if (nmsc->arg_field(nmsc->host, args, i, key, &v) && (v.kind == NMSC_BOOL || v.kind == NMSC_INT)) out = v.i != 0;
+}
+
+// ---- the result
+
+struct Out {
+    NmscOut* o;
+    void table() { nmsc->out_begin_table(nmsc->host, o); }
+    void array() { nmsc->out_begin_array(nmsc->host, o); }
+    void end() { nmsc->out_end(nmsc->host, o); }
+    void key(const char* k) { nmsc->out_key(nmsc->host, o, k); }
+    void value(std::int64_t i) {
+        NmscValue v{};
+        v.kind = NMSC_INT;
+        v.i = i;
+        nmsc->out_value(nmsc->host, o, &v);
+    }
+    void number(double f) {
+        NmscValue v{};
+        v.kind = NMSC_FLOAT;
+        v.f = f;
+        nmsc->out_value(nmsc->host, o, &v);
+    }
+    void flag(bool b) {
+        NmscValue v{};
+        v.kind = NMSC_BOOL;
+        v.i = b ? 1 : 0;
+        nmsc->out_value(nmsc->host, o, &v);
+    }
+    void text(const std::string& s) {
+        NmscValue v{};
+        v.kind = NMSC_STRING;
+        v.s = s.c_str();
+        nmsc->out_value(nmsc->host, o, &v);
+    }
+    void field(const char* k, std::int64_t i) { key(k), value(i); }
+    void field_number(const char* k, double f) { key(k), number(f); }
+    void field_flag(const char* k, bool b) { key(k), flag(b); }
+    void field_text(const char* k, const std::string& s) { key(k), text(s); }
+};
+
+// The plugin when its windows have something to show: an NMS server, in the game.
+Nms* active() {
+    Nms& n = plugin();
+    return n.detected() && in_zone(player()) ? &n : nullptr;
+}
+
+// ---- the Personal Loot window
+
+int f_loot(void*, const NmscArgs*, NmscOut* o) {
+    Nms* n = active();
+    if (!n) return 0;
+    static std::uint32_t reset_seen = 0; // /loot reset as the window last saw it
+    PersonalLoot& loot = n->loot;
+    const std::int64_t now = now_ms();
+    Out out{o};
+    out.table();
+    out.field_flag("visible", loot.visible());
+    out.field("tab", loot.take_requested_tab());
+    out.field_flag("reset", reset_seen != n->loot_reset_serial);
+    reset_seen = n->loot_reset_serial;
+    out.key("rows");
+    out.array();
+    for (const PersonalLoot::Row* r : loot.visible_rows(now)) {
+        out.table();
+        out.field("pending", r->d.pending_id);
+        out.field("item", r->d.item_id);
+        out.field("icon", r->d.icon);
+        out.field("qty", r->d.quantity);
+        out.field("charges", r->d.charges);
+        out.field("value", r->d.sell_value);
+        out.field("left", PersonalLoot::seconds_left(*r, now));
+        out.field_flag("lore", r->d.lore != 0);
+        out.field_flag("nodrop", r->d.no_drop != 0);
+        out.field_flag("augmented", r->d.augmented != 0);
+        out.field_text("name", r->d.item_name);
+        out.field_text("npc", r->d.npc_name);
+        out.field("rule", static_cast<int>(loot.rules().get(r->d.item_id)));
+        out.end();
+    }
+    out.end();
+    if (const auto& s = loot.settings()) {
+        out.key("settings");
+        out.table();
+        out.field_flag("enabled", (s->flags & 1) != 0);
+        out.field("sellUnder", s->sell_under);
+        out.field("timeout", s->timeout_seconds);
+        out.field_flag("defer", s->defer_in_combat);
+        out.field_flag("report", s->report_enabled);
+        out.end();
+    }
+    out.key("history");
+    out.array();
+    const auto& hist = loot.history();
+    const auto since = static_cast<std::uint32_t>(std::max<std::int64_t>(0, now - loot.history_ms()) / 1000);
+    for (auto it = hist.rbegin(); it != hist.rend(); ++it) {
+        out.table();
+        out.field("item", it->item_id);
+        out.field("icon", it->icon);
+        out.field("qty", it->quantity);
+        out.field("copper", it->copper);
+        out.field("age", it->age_seconds + since);
+        out.field("action", it->action);
+        out.field_text("name", it->item_name);
+        out.field_text("npc", it->npc_name);
+        out.end();
+    }
+    out.end();
+    out.key("localHistory");
+    out.array();
+    for (const auto& h : loot.local_history()) {
+        out.table();
+        out.field_text("name", h.item);
+        out.field_text("npc", h.npc);
+        out.field("qty", h.quantity);
+        out.field("rule", static_cast<int>(h.rule));
+        out.field("age", std::max<std::int64_t>(0, now - h.at_ms) / 1000);
+        out.end();
+    }
+    out.end();
+    out.key("rules");
+    out.array();
+    for (const auto& r : loot.rules().rules()) {
+        out.table();
+        out.field("id", r.item_id);
+        out.field("type", static_cast<int>(r.type));
+        out.field_text("name", r.name);
+        out.end();
+    }
+    out.end();
+    out.field_text("rulesFile", loot.rules().path().string());
+    out.end();
+    return 1;
+}
+
+int f_loot_send(void*, const NmscArgs* args, NmscOut*) {
+    if (Nms* n = active()) {
+        LootSend a;
+        a.action = static_cast<std::uint32_t>(arg_int(args, 0));
+        a.pending_id = static_cast<std::uint32_t>(arg_int(args, 1));
+        a.item_id = static_cast<std::uint32_t>(arg_int(args, 2));
+        a.value = static_cast<std::uint32_t>(arg_int(args, 3));
+        n->send_loot(a);
+    }
+    return 0;
+}
+
+int f_loot_rule(void*, const NmscArgs* args, NmscOut*) {
+    Nms* n = active();
+    if (!n) return 0;
+    const auto id = static_cast<std::uint32_t>(arg_int(args, 0));
+    const auto type = static_cast<int>(arg_int(args, 2, -1));
+    if (id == 0 || type < 0 || type >= kLootRuleCount) return 0;
+    n->loot.set_rule(id, arg_string(args, 1), static_cast<LootRule>(type));
+    return 0;
+}
+
+int f_loot_window(void*, const NmscArgs* args, NmscOut*) {
+    Nms* n = active();
+    if (!n) return 0;
+    PersonalLoot& loot = n->loot;
+    const std::string op = arg_string(args, 0);
+    if (op == "show") {
+        loot.show(arg_bool(args, 1), now_ms());
+    } else if (op == "reload") {
+        loot.rules().load(loot.rules().path());
+    } else if (op == "clearHistory") {
+        loot.clear_local_history();
+    } else if (op == "prefs") {
+        arg_flag(args, 1, "autoOpen", loot.prefs.auto_open);
+        arg_flag(args, 1, "autoClose", loot.prefs.auto_close);
+        arg_flag(args, 1, "pinned", loot.prefs.pinned);
+        arg_flag(args, 1, "locked", loot.prefs.locked);
+        arg_flag(args, 1, "countdown", loot.prefs.show_countdown);
+        arg_flag(args, 1, "sound", loot.prefs.sound);
+    }
+    return 0;
+}
+
+// ---- the Autoplay Console and the cooldowns
+
+int f_autoplay(void*, const NmscArgs*, NmscOut* o) {
+    Nms* n = active();
+    if (!n) return 0;
+    const std::uint32_t classes = n->own_classes();
+    const auto now = static_cast<std::uint32_t>(now_ms());
+    Out out{o};
+    out.table();
+    if (n->autoplay_console) out.field_flag("console", *n->autoplay_console);
+    out.key("rows");
+    out.array();
+    for (std::size_t i = 0; i < kAutoSkills.size(); ++i) {
+        const auto& s = kAutoSkills[i];
+        if (!(classes & s.class_mask)) continue;
+        const float left = n->cooldowns.remaining(i, now);
+        out.table();
+        out.field_text("name", s.name);
+        out.field_flag("enabled", (n->cooldowns.autoskill_mask() & (1u << s.bit)) != 0);
+        out.field_number("left", left);
+        out.field_number("fraction", left > 0.0f ? left / n->cooldowns.longest(i) : 0.0f);
+        out.end();
+    }
+    out.end();
+    out.end();
+    return 1;
+}
+
+int f_autoplay_console(void*, const NmscArgs* args, NmscOut*) {
+    if (Nms* n = active()) n->autoplay_console = arg_bool(args, 0);
+    return 0;
+}
+
+int f_autoskill(void*, const NmscArgs* args, NmscOut*) {
+    if (!active()) return 0;
+    command_line("/say #autoskill " + arg_string(args, 0) + (arg_bool(args, 1) ? " enable" : " disable"));
+    return 0;
+}
+
+int f_cooldowns(void*, const NmscArgs*, NmscOut* o) {
+    Nms* n = active();
+    if (!n) return 0;
+    const std::uint32_t classes = n->own_classes();
+    const auto now = static_cast<std::uint32_t>(now_ms());
+    Out out{o};
+    out.array();
+    for (std::size_t i = 0; i < kAutoSkills.size(); ++i) {
+        const auto& s = kAutoSkills[i];
+        if (!(n->cooldowns.autoskill_mask() & (1u << s.bit)) || !(classes & s.class_mask)) continue;
+        const float left = n->cooldowns.remaining(i, now);
+        out.array();
+        out.text(s.name);
+        out.number(left);
+        out.number(left > 0.0f ? left / n->cooldowns.longest(i) : 0.0f);
+        out.end();
+    }
+    out.end();
+    return 1;
+}
+
+// ---- the vault
+
+void bag_items(Out& out, const std::vector<VaultBagItem>& items) {
+    out.array();
+    for (const auto& b : items) {
+        out.table();
+        out.field("item", b.item_id);
+        out.field("qty", b.quantity);
+        out.field("icon", b.icon);
+        out.field("slot", b.bag_slot);
+        out.field_text("name", b.name);
+        out.end();
+    }
+    out.end();
+}
+
+int f_vault(void*, const NmscArgs*, NmscOut* o) {
+    Nms* n = active();
+    if (!n) return 0;
+    const Vault& v = n->vault;
+    Out out{o};
+    out.table();
+    out.field_flag("shown", v.shown());
+    out.field("page", v.page());
+    out.field("first", vault_page_first(v.page()));
+    out.field("last", vault_page_last(v.page()));
+    out.key("labels");
+    out.array();
+    for (int p = 1; p <= 9; ++p) out.text(vault_page_label(p));
+    out.end();
+    // slots[slot]: a table keyed by the slot number
+    out.key("slots");
+    out.table();
+    for (const auto& s : v.slots()) {
+        const std::string slot = std::to_string(s.slot);
+        out.key(slot.c_str());
+        out.table();
+        out.field("item", s.item_id);
+        out.field("icon", s.icon);
+        out.field_text("name", s.name);
+        out.field("bag", s.bag_size);
+        out.key("contents");
+        bag_items(out, s.contents);
+        out.end();
+    }
+    out.end();
+    out.key("bags");
+    out.array();
+    for (const auto& [slot, b] : v.bags()) {
+        if (!b.open) continue;
+        out.table();
+        out.field("slot", b.slot);
+        out.field_text("name", b.name);
+        out.field("size", b.size);
+        out.key("contents");
+        bag_items(out, b.contents);
+        out.end();
+    }
+    out.end();
+    if (auto cur = item(NmscItemSlot{0, NMSC_SLOT_CURSOR, -1, -1}); cur && cur->name[0]) {
+        out.key("cursor");
+        out.table();
+        out.field_text("name", cur->name);
+        out.field("icon", cur->icon);
+        out.end();
+    }
+    out.end();
+    return 1;
+}
+
+int f_vault_say(void*, const NmscArgs* args, NmscOut*) {
+    if (!active()) return 0;
+    const std::string cmd = arg_string(args, 0);
+    if (cmd.rfind("#vault_", 0) == 0) command_line("/say " + cmd);
+    return 0;
+}
+
+int f_vault_window(void*, const NmscArgs* args, NmscOut*) {
+    Nms* n = active();
+    if (!n) return 0;
+    Vault& v = n->vault;
+    const std::string op = arg_string(args, 0);
+    const auto slot = static_cast<std::int32_t>(arg_int(args, 1));
+    if (op == "hide") {
+        v.show(false);
+    } else if (op == "bag") {
+        if (const VaultSlot* s = v.at(slot)) v.toggle_bag(*s);
+    } else if (op == "closeBag") {
+        v.close_bag(slot);
+    } else if (op == "inspect") {
+        // FUN_1019c1b0: OP_ItemLinkClick {item, the six augments, flag 4}.
+        if (const VaultSlot* s = v.at(slot); s && s->item_id) {
+            std::uint32_t augs[6];
+            for (std::size_t k = 0; k < 6; ++k) augs[k] = static_cast<std::uint32_t>(s->augments[k]);
+            nmsc->inspect_item(nmsc->host, static_cast<std::uint32_t>(s->item_id), augs);
         }
-        ImGui::BeginDisabled(rows.empty());
-        if (ImGui::Button("Loot All")) act = LootSend{net::kLootActionLootAll, 0, 0, 0};
-        ImGui::SameLine();
-        if (ImGui::Button("Sell All")) act = LootSend{kLootActionSellAll, 0, 0, 0};
-        ImGui::EndDisabled();
-        ImGui::SameLine();
-        if (ImGui::Button("Refresh")) act = LootSend{net::kLootActionRefresh, 0, 0, 0};
+    } else if (op == "inspectItem" && slot > 0) {
+        nmsc->inspect_item(nmsc->host, static_cast<std::uint32_t>(slot), nullptr);
     }
-    ImGui::End();
-    if (!open) loot.show(false, now);
-    return act;
+    return 0;
 }
 
-// The NMS patch's /fov (and /camera) <10..150>: despite the name it sets the maximum camera zoom distance
-// (__gfMaxZoomCameraDistance and __gfMaxCameraDistance, MQ2Commands.cpp CmdFov), not the field of view.
-std::string NmsExtension::fov_command(const std::string& args, float& max_camera_distance, float& camera_distance) {
-    std::string a = args;
-    while (!a.empty() && a.front() == ' ') a.erase(a.begin());
-    if (a.empty()) return std::format("Current Max Zoom Distance is: {:f}", max_camera_distance);
-    float v = std::strtof(a.c_str(), nullptr);
-    if (v < 10.0f || v > 150.0f)
-        return "Usage: /fov <zoom_distance> (min 10, max 150. Default is usually around 53. Try /fov 90)";
-    max_camera_distance = v;
-    camera_distance = std::min(camera_distance, v);
-    return std::format("Max zoom distance set to {:f}", v);
+// ---- the waypoint window
+
+// WaypointsWnd::WaypointsWnd: the continent names by category id (0-based); others are "Unknown". (The patch's own
+// table, not the server's categories, nms_waypoints.h continent_name.)
+constexpr const char* kPatchContinents[] = {"Antonica", "Faydwer", "Odus",      "Kunark", "Velious",
+                                            "Luclin",   "The Planes", "Discord", "Special"};
+
+int f_waypoints(void*, const NmscArgs*, NmscOut* o) {
+    Nms* n = active();
+    if (!n || !n->waypoints) return 0;
+    const WaypointList& wl = *n->waypoints;
+    Out out{o};
+    out.table();
+    out.field("serial", n->waypoint_serial);
+    out.field_flag("groupEnabled", wl.group_enabled);
+    out.field_flag("expeditionEnabled", wl.expedition_enabled);
+    out.field_flag("group", wl.group_selected);
+    out.field_flag("autoconfirm", wl.autoconfirm_selected);
+    out.key("continents");
+    out.array();
+    for (const char* c : kPatchContinents) out.text(c);
+    out.end();
+    out.key("entries");
+    out.array();
+    for (const auto& e : wl.entries) {
+        out.table();
+        out.field("category", e.category);
+        out.field("id", e.id);
+        out.field_flag("enabled", e.enabled);
+        out.field_text("name", e.name);
+        out.field_text("continent", continent_name(e.category));
+        const std::int32_t x = waypoint_expansion(e);
+        out.field("expansion", x);
+        out.field_text("expansionName", expansion_name(x));
+        out.field_text("zone", std::string(waypoint_zone(e)));
+        out.end();
+    }
+    out.end();
+    out.end();
+    return 1;
 }
 
-bool NmsExtension::window_toggle(net::GameConnection&, const std::string& toggle, game::ExtensionAppContext& app) {
-    auto print = [&app](const std::string& line) {
-        if (app.print) app.print(line);
-    };
-    if (toggle.rfind("fov ", 0) == 0) {
-        if (app.max_camera_distance && app.camera_distance)
-            print(fov_command(toggle.substr(4), *app.max_camera_distance, *app.camera_distance));
-        return true;
-    }
-    return false;
+int f_waypoint_request(void*, const NmscArgs* args, NmscOut*) {
+    Nms* n = active();
+    if (!n || !n->waypoints) return 0;
+    WaypointRequest r;
+    r.id = static_cast<std::int32_t>(arg_int(args, 0));
+    r.expedition = arg_bool(args, 1);
+    r.group = arg_bool(args, 2);
+    r.autoconfirm = arg_bool(args, 3);
+    // The server stores the boxes' states; the list keeps them until its next one.
+    n->waypoints->group_selected = r.group;
+    n->waypoints->autoconfirm_selected = r.autoconfirm;
+    n->send_waypoint_request(r);
+    return 0;
 }
 
-void NmsExtension::draw(net::GameConnection& c, game::ExtensionAppContext& app) {
-    // The Lua Personal Loot window (nmsloot.lua) stands in for this one when the UI has it.
-    if (c.state() == net::ConnectionState::InZone && !ui::lua::replaces("NmsLootWnd")) {
-        const bool reset = loot_reset_seen_ != loot_reset_serial_;
-        loot_reset_seen_ = loot_reset_serial_;
-        if (auto act = loot_window(loot_, reset, app.item_icons)) send_loot(c, *act);
-    }
-    // The Lua WaypointsWnd (plugins/nms/nms_lua.cpp, the patch's SIDL window) stands in for this one when the UI
-    // has it.
-    if (waypoints_ && c.state() == net::ConnectionState::InZone && !ui::lua::replaces("WaypointsWnd")) {
-        // WaypointsWnd::WndNotification: Travel sends the waypoint, My Expedition id 0 with the expedition flag,
-        // and each check box id 0 with the boxes' state (the server stores them).
-        WaypointAction act = waypoint_window(waypoint_window_, *waypoints_);
-        switch (act.kind) {
-        case WaypointAction::Kind::Travel: request_waypoint(c, act.id); break;
-        case WaypointAction::Kind::Expedition: request_waypoint(c, 0, true); break;
-        case WaypointAction::Kind::Settings: request_waypoint(c, 0); break;
-        case WaypointAction::Kind::None: break;
-        }
-    }
+} // namespace
+
+void register_ui_functions() {
+    static const struct {
+        const char* name;
+        NmscUiFn fn;
+    } kFunctions[] = {{"loot", f_loot},
+                      {"loot_send", f_loot_send},
+                      {"loot_rule", f_loot_rule},
+                      {"loot_window", f_loot_window},
+                      {"autoplay", f_autoplay},
+                      {"autoplay_console", f_autoplay_console},
+                      {"autoskill", f_autoskill},
+                      {"cooldowns", f_cooldowns},
+                      {"vault", f_vault},
+                      {"vault_say", f_vault_say},
+                      {"vault_window", f_vault_window},
+                      {"waypoints", f_waypoints},
+                      {"waypoint_request", f_waypoint_request}};
+    for (const auto& f : kFunctions) nmsc->add_ui_function(nmsc->host, f.name, f.fn, nullptr);
 }
 
-} // namespace nmsc::nms
+} // namespace nms

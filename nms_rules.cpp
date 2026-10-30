@@ -1,12 +1,9 @@
-#include "plugins/nms/nms_rules.h"
+#include "nms_rules.h"
 
 #include <algorithm>
 #include <format>
 
-#include "game/zone_names.h"
-#include "net/social_packets.h"
-
-namespace nmsc::nms {
+namespace nms {
 
 namespace {
 
@@ -144,10 +141,10 @@ std::optional<std::uint8_t> list_level(const LevelOf& orig, std::uint32_t mask) 
     return std::nullopt;
 }
 
-std::vector<std::string> format_who(const net::WhoResponse& r) {
+std::vector<std::string> format_who(const std::vector<WhoEntry>& entries, const ZoneNameFn& zone_name) {
     std::vector<std::string> lines;
-    for (const auto& e : r.entries) {
-        std::uint32_t v = e.class_;
+    for (const auto& e : entries) {
+        std::uint32_t v = e.class_value;
         std::string klass;
         if (v & (v - 1)) klass = mask_codes(v);               // more than one bit: a mask
         else if (v >= 1 && v <= 16) klass = kCodes[v - 1];    // a class id
@@ -155,7 +152,7 @@ std::vector<std::string> format_who(const net::WhoResponse& r) {
         else klass = "Unknown";
         std::string zone;
         if (e.zone_string == 5006) {
-            std::string z = game::zone_short_name(e.zone_id);
+            std::string z = zone_name ? zone_name(e.zone_id) : std::string();
             if (!z.empty()) zone = " ZONE: " + z;
         }
         const char* rank = who_rank(e.rank_string);
@@ -166,7 +163,7 @@ std::vector<std::string> format_who(const net::WhoResponse& r) {
         else
             lines.push_back(std::format("[{}] - [{} {} ({})]{}{}", e.name, e.level, klass, who_race(e.race), zone, rank));
     }
-    const std::size_t n = r.entries.size();
+    const std::size_t n = entries.size();
     if (n == 0) lines.emplace_back("There are no players in EverQuest that match those who filters.");
     else if (n == 1) lines.emplace_back("There is 1 player in EverQuest.");
     else lines.push_back(std::format("There are {} players in EverQuest.", n));
@@ -185,13 +182,13 @@ void DisciplineTimers::set(std::int32_t id, std::uint32_t ready) {
     timers_.emplace_back(id, ready);
 }
 
-game::CharacterVitals server_vitals(const std::map<std::uint32_t, std::int64_t>& stats) {
+Vitals server_vitals(const std::map<std::uint32_t, std::int64_t>& stats) {
     auto stat = [&](std::uint32_t key) -> std::optional<std::int32_t> {
         auto it = stats.find(key);
         if (it == stats.end()) return std::nullopt;
         return it->second >= 0x7ffffffe ? 0x7ffffffe : static_cast<std::int32_t>(static_cast<std::uint32_t>(it->second));
     };
-    game::CharacterVitals v;
+    Vitals v;
     v.cur_hp = stat(2);
     v.cur_mana = stat(3);
     v.cur_endurance = stat(4);
@@ -207,7 +204,7 @@ std::optional<std::int32_t> discipline_band(std::uint32_t spell_id) {
         std::int32_t timer;
     };
     static constexpr Band kBands[] = {
-#include "plugins/nms/nms_discipline_bands.inc"
+#include "nms_discipline_bands.inc"
     };
     std::optional<std::int32_t> out; // the loop writes each entry in turn: the last one for a spell wins
     for (const Band& b : kBands)
@@ -290,4 +287,4 @@ bool xtarget_server_pet_slot(std::uint32_t slot_type, std::uint32_t spawn_id, st
     return std::find(pet_ids.begin(), pet_ids.end(), spawn_id) != pet_ids.end();
 }
 
-} // namespace nmsc::nms
+} // namespace nms

@@ -1,21 +1,18 @@
-// The NMS module's values for the Lua windows (app/lua_eq_*.cpp): the patch's labels, the item display's
-// "Level Needed" line and the merchant's Lvl column (NMS/dinput8.dll; rof2decomp notes/nms-dinput8.md).
+// The NMS plugin's values for the client's windows: the patch's labels, the item display's "Level Needed" line and
+// the merchant's Lvl column (NMS/dinput8.dll; rof2decomp notes/nms-dinput8.md).
 
 #include <cstdio>
 
-#include "game/spells.h"
-#include "net/game_connection.h"
-#include "net/item_packets.h"
-#include "plugins/nms/nms_extension.h"
+#include "nms_plugin.h"
 
-namespace nmsc::nms {
+namespace nms {
 
 namespace {
 
 // ---- The NMS client patch's labels (dinput8.dll; NMS servers with Custom:ServerAuthStats) ----
-// The patch hooks __GetLabelFromEQ (0x10156540): it runs the original (app/lua_eq_values.cpp eq_label), then for
-// the types in its table replaces the text with one built from the server's OP_ServerAuthStats values
-// (GameConnection::server_stats). The colour stays the original's. Decoded from the handler table it builds at
+// The patch hooks __GetLabelFromEQ (0x10156540): it runs the original (the client's label), then for the types in
+// its table replaces the text with one built from the server's OP_ServerAuthStats values (Nms::stats). The colour
+// stays the original's. Decoded from the handler table it builds at
 // 0x10153d30 (type -> handler) and 0x101541c0 (type -> StatEntry key); docs/unknowns.md.
 
 // The class titles by level (0x10154d10: the player's level, >= 75 / 70 / 65 / 60 / 55 / 51), as the patch spells
@@ -49,20 +46,21 @@ std::string class_title(int cls, int level) {
 constexpr const char* kClassAbbr[17] = {"", "WAR", "CLR", "PAL", "RNG", "SHD", "DRU", "MNK", "BRD",
                                            "ROG", "SHM", "NEC", "WIZ", "MAG", "ENC", "BST", "BER"};
 
-const std::int64_t* server_stat(const net::GameConnection& c, std::uint32_t key) {
-    const auto& m = c.server_stats();
+using Stats = std::map<std::uint32_t, std::int64_t>;
+
+const std::int64_t* server_stat(const Stats& m, std::uint32_t key) {
     auto it = m.find(key);
     return it == m.end() ? nullptr : &it->second;
 }
 
 // 0x10155530: the value as a decimal number, or " " without one.
-std::string stat_value(const net::GameConnection& c, std::uint32_t key) {
+std::string stat_value(const Stats& c, std::uint32_t key) {
     const std::int64_t* v = server_stat(c, key);
     return v ? std::to_string(*v) : std::string(" ");
 }
 
 // 0x10155a40 / bc0 / d40: cur * 100 / max (doubles, truncated); " " without both keys, max <= 0 or cur < 0.
-std::string stat_percent(const net::GameConnection& c, std::uint32_t cur_key, std::uint32_t max_key) {
+std::string stat_percent(const Stats& c, std::uint32_t cur_key, std::uint32_t max_key) {
     const std::int64_t* cur = server_stat(c, cur_key);
     const std::int64_t* max = server_stat(c, max_key);
     if (!cur || !max || *max <= 0 || *cur < 0) return " ";
@@ -71,12 +69,13 @@ std::string stat_percent(const net::GameConnection& c, std::uint32_t cur_key, st
 
 // The classes in the bit mask (key 1), one per line (0x101555d0: the titles, "None" without classes; 0x10155830:
 // the abbreviations, "" without).
-std::string classes(const net::GameConnection& c, bool titles) {
+std::string classes(const Stats& c, bool titles) {
     const char* none = titles ? "None" : "";
     const std::int64_t* mask = server_stat(c, 1);
     if (!mask || *mask == 0) return none;
-    int level = c.player_status().level;
-    if (titles && !c.world().player()) return none;
+    const NmscPlayer me = player();
+    int level = static_cast<int>(me.level);
+    if (titles && !player_spawned(me)) return none;
     std::string out;
     for (int cls = 1; cls <= 16; ++cls) {
         if (!(*mask & (std::int64_t{1} << (cls - 1)))) continue;
@@ -102,7 +101,7 @@ std::optional<std::uint32_t> stat_key(int type) {
 }
 
 // The patch's handler for `type`: its text, or nullopt when the type is not in its table.
-std::optional<std::string> label_handler(const net::GameConnection& c, int type) {
+std::optional<std::string> label_handler(const Stats& c, int type) {
     switch (type) {
     case 3: return classes(c, true);
     case 6666: return classes(c, false);
@@ -128,55 +127,57 @@ std::optional<std::string> label_handler(const net::GameConnection& c, int type)
 
 } // namespace
 
-void NmsExtension::label_text(const net::GameConnection& c, int type, std::string& text) const {
-    if (c.server_stats().empty()) return;
+std::optional<std::string> Nms::label(int type, const std::string& text) const {
+    const Stats& c = stats;
+    if (c.empty()) return std::nullopt;
     if (type == 19) {
         // Only while the target is the player (pinstTarget's spawn id == pinstLocalPlayer's).
-        if (c.world().target_id != 0 && c.world().target_id == c.world().player_id) text = stat_percent(c, 2, 5);
-        return;
+        const NmscPlayer me = player();
+        if (me.target_id != 0 && me.target_id == me.spawn_id) return stat_percent(c, 2, 5);
+        return std::nullopt;
     }
     if (type >= 5 && type <= 11) {
         // The stats: the server's value replaces the text before the first '/' (there is none in the stock text).
         auto slash = text.find('/');
         auto key = stat_key(type);
         const std::int64_t* val = key ? server_stat(c, *key) : nullptr;
-        if (slash == std::string::npos || !val) return;
-        text = std::to_string(static_cast<std::int32_t>(*val)) + text.substr(slash);
-        return;
+        if (slash == std::string::npos || !val) return std::nullopt;
+        return std::to_string(static_cast<std::int32_t>(*val)) + text.substr(slash);
     }
     if (type == 338) {
         // EOM points: PlayerPointManager::GetAltCurrency(6, 1) (0x10156f90); alternate currencies are not kept by
         // this client, so the label stays empty rather than showing the original's "Unknown Label338".
-        text.clear();
-        return;
+        return std::string();
     }
     auto t = label_handler(c, type);
-    if (t && !t->empty()) text = std::move(*t);
+    if (t && !t->empty()) return t;
+    return std::nullopt;
 }
 
-std::function<std::string(const game::SpellData&)> NmsExtension::level_needed_line(const net::GameConnection& c) const {
-    // The patch's "Level Needed: CLR(1) ..." line (FUN_101507b0 / ScrubTooltipLevelNeeded), with a class mask.
-    if (class_mask(c) == 0) return {};
-    return [this, &c](const game::SpellData& s) {
-        auto orig = [&s](std::uint32_t k) { return s.class_level[k - 1]; };
-        return nms::level_needed_line(orig, class_mask(c), c.visible_class());
-    };
+std::optional<std::string> Nms::item_level_line(std::uint32_t spell_id) const {
+    // The patch's "Level Needed: CLR(1) ..." line (FUN_101507b0 / ScrubTooltipLevelNeeded), with a class mask;
+    // without one the stock line.
+    const std::uint32_t mask = class_mask();
+    if (mask == 0) return std::nullopt;
+    const auto s = spell(spell_id);
+    if (!s) return std::nullopt;
+    auto orig = [&s](std::uint32_t k) { return s->class_level[k - 1]; };
+    return nms::level_needed_line(orig, mask, player().visible_class);
 }
 
-std::optional<std::string> NmsExtension::merchant_level(const net::GameConnection& c, const net::Item& item) const {
+std::optional<std::string> Nms::list_level(const NmscItem& item) const {
     // The NMS patch's merchant Lvl column (CMerchantWnd::UpdateList detour, notes/nms-dinput8.md §3.6): for a spell
     // scroll the lowest level over the class mask ("%3d" so the string sort orders it), else over all 16 classes
     // when one can use it, else "--"; nullopt for anything else or without a class mask.
-    const std::uint32_t mask = class_mask(c);
-    if (!mask || item.item_type != 20) return std::nullopt;
-    const auto& sc = item.effects[net::kEffectScroll];
-    const game::SpellData* s = sc.effect > 0 ? c.spell_table().get(static_cast<std::uint32_t>(sc.effect)) : nullptr;
+    const std::uint32_t mask = class_mask();
+    if (!mask || item.item_type != 20 || item.scroll_spell == 0) return std::nullopt;
+    const auto s = spell(item.scroll_spell);
     if (!s) return std::nullopt;
-    auto lvl = list_level([s](std::uint32_t k) { return s->class_level[k - 1]; }, mask);
+    auto lvl = nms::list_level([&s](std::uint32_t k) { return s->class_level[k - 1]; }, mask);
     if (!lvl) return std::string("--");
     char b[8];
     std::snprintf(b, sizeof b, "%3d", *lvl);
     return std::string(b);
 }
 
-} // namespace nmsc::nms
+} // namespace nms

@@ -1,115 +1,16 @@
 // The NMS patch's Personal Loot window without its drawing (NMS-Release eqgame_dll/loot_window.cpp; see nms_loot.h).
 
-#include "plugins/nms/nms_loot.h"
+#include "nms_loot.h"
 
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
 #include <format>
-#include <stdexcept>
 #include <system_error>
 
-#include "core/byte_io.h"
-#include "core/ini_file.h"
-#include "net/opcodes.h"
-#include "net/packet_io.h"
+#include "nms_ini.h"
 
-namespace nmsc::nms {
-
-using net::Op;
-using net::detail::decode_with;
-using net::make_packet;
-
-// ---------------------------------------------------------------- the snapshots
-
-std::optional<std::vector<LootFilterRow>> decode_loot_filters(const net::AppPacket& p) {
-    return decode_with(p, [](ByteReader& r) {
-        std::vector<LootFilterRow> v;
-        const std::uint32_t count = r.le<std::uint32_t>();
-        if (count > r.remaining() / 80) throw std::length_error("loot filters: count");
-        for (std::uint32_t i = 0; i < count; ++i) {
-            LootFilterRow f;
-            f.item_id = r.le<std::uint32_t>();
-            f.icon = r.le<std::uint32_t>();
-            f.sell_value = r.le<std::uint32_t>();
-            f.rule = r.le<std::uint8_t>();
-            r.skip(3);
-            f.name = r.fixed_string(64);
-            v.push_back(std::move(f));
-        }
-        return v;
-    });
-}
-
-net::AppPacket encode(const std::vector<LootFilterRow>& v) {
-    ByteWriter w;
-    w.le(static_cast<std::uint32_t>(v.size()));
-    for (const auto& f : v) {
-        for (std::uint32_t x : {f.item_id, f.icon, f.sell_value}) w.le(x);
-        w.le(f.rule);
-        w.zeros(3);
-        w.fixed_string(f.name, 64);
-    }
-    return make_packet(Op::PersonalLootFilters, std::move(w));
-}
-
-std::optional<LootSettings> decode_loot_settings(const net::AppPacket& p) {
-    // OnSettings: shorter than the struct is ignored.
-    if (p.data.size() < 16) return std::nullopt;
-    return decode_with(p, [](ByteReader& r) {
-        LootSettings s;
-        s.flags = r.le<std::uint32_t>();
-        s.sell_under = r.le<std::uint32_t>();
-        s.timeout_seconds = r.le<std::uint32_t>();
-        s.defer_in_combat = r.le<std::uint8_t>() != 0;
-        s.report_enabled = r.le<std::uint8_t>() != 0;
-        return s;
-    });
-}
-
-net::AppPacket encode(const LootSettings& s) {
-    ByteWriter w;
-    for (std::uint32_t x : {s.flags, s.sell_under, s.timeout_seconds}) w.le(x);
-    w.le<std::uint8_t>(s.defer_in_combat ? 1 : 0);
-    w.le<std::uint8_t>(s.report_enabled ? 1 : 0);
-    w.zeros(2);
-    return make_packet(Op::PersonalLootSettings, std::move(w));
-}
-
-std::optional<std::vector<LootHistoryRow>> decode_loot_history(const net::AppPacket& p) {
-    return decode_with(p, [](ByteReader& r) {
-        std::vector<LootHistoryRow> v;
-        const std::uint32_t count = r.le<std::uint32_t>();
-        if (count > r.remaining() / 152) throw std::length_error("loot history: count");
-        for (std::uint32_t i = 0; i < count; ++i) {
-            LootHistoryRow h;
-            h.item_id = r.le<std::uint32_t>();
-            h.icon = r.le<std::uint32_t>();
-            h.quantity = r.le<std::uint32_t>();
-            h.copper = r.le<std::uint32_t>();
-            h.age_seconds = r.le<std::uint32_t>();
-            h.action = r.le<std::uint8_t>();
-            r.skip(3);
-            h.item_name = r.fixed_string(64);
-            h.npc_name = r.fixed_string(64);
-            v.push_back(std::move(h));
-        }
-        return v;
-    });
-}
-
-net::AppPacket encode(const std::vector<LootHistoryRow>& v) {
-    ByteWriter w;
-    w.le(static_cast<std::uint32_t>(v.size()));
-    for (const auto& h : v) {
-        for (std::uint32_t x : {h.item_id, h.icon, h.quantity, h.copper, h.age_seconds}) w.le(x);
-        w.le(h.action);
-        w.zeros(3);
-        w.fixed_string(h.item_name, 64);
-        w.fixed_string(h.npc_name, 64);
-    }
-    return make_packet(Op::PersonalLootHistory, std::move(w));
-}
+namespace nms {
 
 // ---------------------------------------------------------------- the rules
 
@@ -128,7 +29,7 @@ void LootRules::load(const std::filesystem::path& path) {
     path_ = path;
     rules_.clear();
     if (path_.empty()) return;
-    IniFile ini;
+    Ini ini;
     ini.load(path_);
     for (int t = 1; t < kLootRuleCount; ++t) {
         const LootRule type = static_cast<LootRule>(t);
@@ -148,7 +49,7 @@ void LootRules::load(const std::filesystem::path& path) {
 void LootRules::save() const {
     // SaveRules: each section rewritten whole, in the rules' order.
     if (path_.empty()) return;
-    IniFile ini;
+    Ini ini;
     for (int t = 1; t < kLootRuleCount; ++t) {
         const LootRule type = static_cast<LootRule>(t);
         for (const auto& r : rules_)
@@ -221,7 +122,7 @@ std::uint32_t PersonalLoot::seconds_left(const Row& r, std::int64_t now_ms) {
     return r.d.seconds_left > elapsed ? r.d.seconds_left - elapsed : 0;
 }
 
-std::vector<LootSend> PersonalLoot::on_list(const net::PersonalLootList& list, std::int64_t now_ms) {
+std::vector<LootSend> PersonalLoot::on_list(const PersonalLootList& list, std::int64_t now_ms) {
     std::vector<LootSend> sends;
     if (list.flags & kLootListCamping) {
         visible_ = forced_open_ = false;
@@ -251,7 +152,7 @@ std::vector<LootSend> PersonalLoot::on_list(const net::PersonalLootList& list, s
         if (auto_resolving(r.d.pending_id, now_ms)) continue;
         const LootRule t = rules_.get(r.d.item_id);
         if (t == LootRule::None) continue;
-        sends.push_back({loot_rule_keeps(t) ? net::kLootActionKeep : net::kLootActionSell, r.d.pending_id, 0, 0});
+        sends.push_back({loot_rule_keeps(t) ? kLootActionKeep : kLootActionSell, r.d.pending_id, 0, 0});
         auto_resolving_.push_back({r.d.pending_id, now_ms});
         local_history_.insert(local_history_.begin(), {r.d.item_name, r.d.npc_name, r.d.quantity, t, now_ms});
         if (local_history_.size() > 100) local_history_.pop_back();
@@ -299,7 +200,7 @@ std::optional<LootSend> PersonalLoot::pulse(bool player_ready, std::int64_t now_
     }
     if (now_ms < hello_due_ms_) return std::nullopt;
     hello_sent_ = true;
-    return LootSend{net::kLootActionHello, 0, 0, 0};
+    return LootSend{kLootActionHello, 0, 0, 0};
 }
 
 void PersonalLoot::reset(bool left_world) {
@@ -371,7 +272,7 @@ LootCommandResult loot_command(PersonalLoot& loot, const std::string& line, std:
         loot.toggle(now_ms);
     } else if (arg == "show" || arg == "open") {
         loot.show(true, now_ms);
-        res.sends.push_back({net::kLootActionRefresh, 0, 0, 0});
+        res.sends.push_back({kLootActionRefresh, 0, 0, 0});
     } else if (arg == "hide" || arg == "close") {
         loot.show(false, now_ms);
     } else if (arg == "pin" || arg == "unpin") {
@@ -390,7 +291,7 @@ LootCommandResult loot_command(PersonalLoot& loot, const std::string& line, std:
         res.reset_window = true;
         loot.show(true, now_ms);
     } else if (arg == "refresh") {
-        res.sends.push_back({net::kLootActionHello, 0, 0, 0});
+        res.sends.push_back({kLootActionHello, 0, 0, 0});
     } else if (arg == "rules") {
         if (arg2 == "clear") {
             loot.rules().clear();
@@ -423,7 +324,7 @@ LootCommandResult loot_command(PersonalLoot& loot, const std::string& line, std:
         loot.set_rule(id, name, t);
         say(std::format("[Loot] Item {}: {}", id, loot_rule_label(t)));
     } else if (arg == "lootall") {
-        res.sends.push_back({net::kLootActionLootAll, 0, 0, 0});
+        res.sends.push_back({kLootActionLootAll, 0, 0, 0});
     } else if (arg == "sellall") {
         res.sends.push_back({kLootActionSellAll, 0, 0, 0});
     } else {
@@ -434,4 +335,4 @@ LootCommandResult loot_command(PersonalLoot& loot, const std::string& line, std:
     return res;
 }
 
-} // namespace nmsc::nms
+} // namespace nms

@@ -8,7 +8,8 @@
 //   - the server's snapshots: OP_PersonalLootList (net/item_packets.h), OP_PersonalLootFilters, OP_PersonalLootSettings
 //     and OP_PersonalLootHistory (below);
 //   - the item rules (Always Keep / Always Sell / Keep Once / Sell Once) in the character's itemrules.ini (the
-//     patch's <charname>_itemrules.ini next to eqgame.exe), answered by the client before the window opens;
+//     patch's <charname>_itemrules.ini next to eqgame.exe; here in the character's plugin-config/nms/), answered
+//     by the client before the window opens;
 //   - the window's own preferences (the patch's NMS_loot.ini; here the UI's settings, nms.loot.*);
 //   - the Hello (OP_PersonalLootAction 20) once per zone, 3 s after the player exists, which makes the server send
 //     the settings, filters, triage list and history.
@@ -21,46 +22,10 @@
 #include <string>
 #include <vector>
 
-#include "net/item_packets.h"
-#include "net/packet.h"
+#include "nms_packets.h"
 
-namespace nmsc::nms {
+namespace nms {
 
-// ---- the server's snapshots (common/eq_packet_structs.h) ----
-// OP_PersonalLootFilters (zone -> client): u32 count, count x 80 bytes {u32 item_id, icon, sell_value (per unit);
-// u8 rule (1 keep, 3 never); 3 pad; char name[64]}. The patch keeps its own rules and ignores these.
-struct LootFilterRow {
-    std::uint32_t item_id = 0, icon = 0, sell_value = 0;
-    std::uint8_t rule = 0;
-    std::string name;
-};
-std::optional<std::vector<LootFilterRow>> decode_loot_filters(const net::AppPacket& p);
-net::AppPacket encode(const std::vector<LootFilterRow>& v); // server direction, for tests
-
-// OP_PersonalLootSettings (zone -> client, 16 bytes).
-struct LootSettings {
-    std::uint32_t flags = 0;           // bit 0: personal loot enabled on this server
-    std::uint32_t sell_under = 0;      // copper: unknown items worth less are sold by the server
-    std::uint32_t timeout_seconds = 0; // undecided items are looted after this
-    bool defer_in_combat = false, report_enabled = false;
-};
-std::optional<LootSettings> decode_loot_settings(const net::AppPacket& p);
-net::AppPacket encode(const LootSettings& v); // server direction, for tests
-
-// OP_PersonalLootHistory (zone -> client): u32 count, count x 152 bytes {u32 item_id, icon, quantity, copper,
-// age_seconds; u8 action (1 kept, 2 sold, 3 destroyed); 3 pad; char item_name[64], npc_name[64]}, newest last.
-struct LootHistoryRow {
-    std::uint32_t item_id = 0, icon = 0, quantity = 0, copper = 0, age_seconds = 0;
-    std::uint8_t action = 0;
-    std::string item_name, npc_name;
-};
-std::optional<std::vector<LootHistoryRow>> decode_loot_history(const net::AppPacket& p);
-net::AppPacket encode(const std::vector<LootHistoryRow>& v); // server direction, for tests
-
-// OP_PersonalLootAction's actions beyond net::kLootAction* (PersonalLootActionType).
-inline constexpr std::uint32_t kLootActionSellAll = 6, kLootActionGetSettings = 17, kLootActionInspectItem = 18,
-                               kLootActionHistory = 19, kLootActionSetDefer = 14, kLootActionSetReport = 15,
-                               kLootActionSetSellUnder = 16;
 // OP_PersonalLootList's flags.
 inline constexpr std::uint32_t kLootListShow = 1, kLootListCamping = 2;
 
@@ -125,13 +90,13 @@ struct LootSend {
 class PersonalLoot {
 public:
     struct Row {
-        net::PersonalLootRow d;
+        PersonalLootRow d;
         std::int64_t received_ms = 0; // for the countdown
     };
 
     // OnList: takes the snapshot, answers every row a rule covers (returned, to send), and opens or closes the
     // window as the patch does. Camping hides it.
-    std::vector<LootSend> on_list(const net::PersonalLootList& list, std::int64_t now_ms);
+    std::vector<LootSend> on_list(const PersonalLootList& list, std::int64_t now_ms);
     void on_settings(const LootSettings& s) { settings_ = s; }
     void on_history(std::vector<LootHistoryRow> h, std::int64_t now_ms);
     // OnPulse: the Hello once per zone, 3 s after the player exists.
@@ -197,4 +162,4 @@ struct LootCommandResult {
 };
 LootCommandResult loot_command(PersonalLoot& loot, const std::string& args, std::int64_t now_ms);
 
-} // namespace nmsc::nms
+} // namespace nms
