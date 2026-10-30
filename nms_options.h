@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "nms_packets.h"
@@ -30,8 +31,12 @@ struct Options {
     // Hailstone's: the extended target window leaves out the player's own pets the server puts in its last slots
     // (xtarget_server_pet_slot); the Options window's "Hide My Pets in Extended Target", on by default.
     bool xtarget_hide_pets = true;
+    // Servers it stands down on although they send the NMS packets: their own plugin's (Project Triune, a build of the
+    // same patch: plugins/projecttriune). Matched against the saved server's and the world's names (server_matches).
+    std::vector<std::string> skip_servers{"triune"};
 };
-// nms.ini [NMS]: auth_key, hardware_id = fixed (default) | none, xtarget_hide_pets = 1 (default) | 0. Each layer over
+// nms.ini [NMS]: auth_key, hardware_id = fixed (default) | none, xtarget_hide_pets = 1 (default) | 0,
+// skip_servers = triune (default; a comma list). Each layer over
 // the one before: the plugin's own (plugins/nms/nms.ini), the saved server's server.ini [NMS] (where builds before
 // the plugin kept auth_key and hardware_id), the server's plugin-config/nms/nms.ini. Unknown values keep what was
 // there and are named in `warnings`.
@@ -40,6 +45,12 @@ Options read_options(const std::vector<const Ini*>& layers, std::vector<std::str
 // The patch's /fov (and /camera) <10..150>: despite the name it sets the maximum camera zoom distance
 // (__gfMaxZoomCameraDistance and __gfMaxCameraDistance, MQ2Commands.cpp CmdFov), not the field of view. Returns the
 // line to print; `max_camera_distance` changes when the argument is in range.
+// Whether the server is one of `words` (case-insensitive; each word somewhere in the saved server's name or the
+// world's name, as server_info gives them). An empty word never matches.
+bool server_matches(std::string_view name, std::string_view world, const std::vector<std::string>& words);
+// "a, b ,c" -> {"a", "b", "c"} (empty parts dropped).
+std::vector<std::string> split_words(std::string_view list);
+
 std::string fov_command(const std::string& args, float& max_camera_distance);
 
 } // namespace nms
