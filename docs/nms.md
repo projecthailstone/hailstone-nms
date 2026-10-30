@@ -75,14 +75,35 @@ plugin passes it to the core whenever it comes.
 ## Its windows
 
 `ui/modern/` and `ui/gamepad/` hold the Personal Loot window, the Multiclass Autoplay Console and its cooldown
-window, the Dimensional Pocket Vault and the waypoint window ("Attune the Map") for each pack. They use the pack's
+window, the Dimensional Pocket Vault and the waypoint window ("Attune the Map") for each pack, and a Pet window. They use the pack's
 own libraries (a plugin window's `dofile("lib/hud.lua")` finds the pack's), so they look like the rest of the pack. A
-pack without them shows none of these windows. The EQ menu's Plugins submenu and the gamepad pack's More page have
+pack without them shows none of these windows.
+
+**The Pet window** (Hailstone's; the patch has none for it) covers the pack's Pet window once the plugin has seen
+the NMS server, and before that, or on another server, draws the pack's (docs/plugins.md, `ui.base_window`). It is
+the pack's window (`lib/pet.lua`) with the server's `#petcmd` added (its `zone/gm_commands/petcmd.cpp`):
+- the pets to command: All (the server's default), each class that summoned one of the pets OP_PetList lists
+  (`mag`, `nec`, ...; a charmed pet has none), or Swarm;
+- a button for each of the server's commands: attack, queue attack, follow, guard, sit, stop, back off, health,
+  leader, feign death, dismiss (`leave`), and On / Off for its switches: taunt, hold, greater hold, spell hold,
+  focus, regroup, assist. A button sends "/say #petcmd <command> [on|off] <pets>", and the echo of the line is
+  hidden. Swarm pets do not take follow, guard, sit, health, feign, taunt, spell hold or regroup; those are off
+  while Swarm is picked;
+- the server tells the client no pet's switch states, so the switches are not lit, except for swarm pets: the
+  server keeps their four (hold, greater hold, focus, assist) and reports them for "#petcmd hold ghold focus assist
+  swarm", which the window sends (hidden, with its answers) the first time Swarm is picked in a zone;
+- the stock command buttons stay, rolled up: the Modern window folds them under "Pet commands" (`nms.pet.commandsOpen`),
+  the Gamepad window shows them in place of the `#petcmd` part ("Command pets" / "Pet commands",
+  `nms.pet.stockCommands`). They send the stock OP_PetCommands to the pet in the pet window, and they are what makes
+  hot buttons.
+
+The server's `#petcmd` takes a class only as the pet's summoning class, so two pets of one class always take the same
+command. The EQ menu's Plugins submenu and the gamepad pack's More page have
 Personal Loot and Autoplay Console.
 
 The windows reach the plugin through `eq.Plugin("nms")` (`plugins/nms/nms_ui.cpp` lists each function and what it
 gives): `loot`, `loot_send`, `loot_rule`, `loot_window`, `autoplay`, `autoplay_console`, `autoskill`, `cooldowns`,
-`vault`, `vault_say`, `vault_window`, `waypoints`, `waypoint_request`. Each gives nil before the plugin has seen an
+`vault`, `vault_say`, `vault_window`, `waypoints`, `waypoint_request`, `pets`, `pet_command`, `pet_swarm_query`. Each gives nil before the plugin has seen an
 NMS server and outside the game. The windows keep their own settings in the pack's settings (`nms.ShowConsole`,
 `nms.ShowCooldowns`, `nms.loot.*`).
 

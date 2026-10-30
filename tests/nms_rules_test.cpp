@@ -16,6 +16,7 @@
 #include "nms_loot.h"
 #include "nms_options.h"
 #include "nms_packets.h"
+#include "nms_petcmd.h"
 #include "nms_rules.h"
 #include "nms_vault.h"
 #include "nms_waypoints.h"
@@ -692,4 +693,31 @@ TEST_CASE("NMS scribe click rules (notes §3.4)") {
     CHECK(nms::scribe_is_tome(20, "Discipline of Rumblecrush"));
     CHECK_FALSE(nms::scribe_is_tome(20, "Spell: Minor Healing"));
     CHECK_FALSE(nms::scribe_is_tome(20, "SKILL: upper case"));
+}
+
+TEST_CASE("NMS #petcmd lines and the swarm pets' setting lines") {
+    CHECK(nms::petcmd_line("attack", "", "all") == "#petcmd attack all");
+    CHECK(nms::petcmd_line("hold", "on", "swarm") == "#petcmd hold on swarm");
+    CHECK(nms::petcmd_line("spellhold", "off", "nec") == "#petcmd spellhold off nec");
+    CHECK_FALSE(nms::petcmd_line("attack", "on", "all"));  // no state on a plain command
+    CHECK_FALSE(nms::petcmd_line("taunt", "maybe", "all"));
+    CHECK_FALSE(nms::petcmd_line("taunt", "", "swarm"));   // swarm_unsupported_commands
+    CHECK_FALSE(nms::petcmd_line("health", "", "swarm"));
+    CHECK_FALSE(nms::petcmd_line("attack", "", "mag; #gm on"));
+    CHECK_FALSE(nms::petcmd_line("", "", "all"));
+    CHECK(nms::pet_class_word(13) == "mag");
+    CHECK(nms::pet_class_word(15) == "bst");
+    CHECK(nms::pet_class_word(0).empty());
+    CHECK(nms::pet_class_word(17).empty());
+    CHECK(std::string(nms::pet_class_name(5)) == "Shadow Knight");
+    // Every switch takes on/off, and swarm pets take the server's ten.
+    int swarm = 0;
+    for (const auto& v : nms::pet_verbs()) swarm += v.swarm ? 1 : 0;
+    CHECK(swarm == 10);
+
+    CHECK(nms::swarm_setting("Swarm pet focus setting: ON") == std::pair<std::string, bool>{"focus", true});
+    CHECK(nms::swarm_setting("Swarm pet assist setting: OFF") == std::pair<std::string, bool>{"assist", false});
+    CHECK_FALSE(nms::swarm_setting("Swarm pet focus setting: on"));
+    CHECK_FALSE(nms::swarm_setting("Swarm pet  setting: ON"));
+    CHECK_FALSE(nms::swarm_setting("Your pet focus setting: ON"));
 }

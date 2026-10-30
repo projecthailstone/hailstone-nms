@@ -34,6 +34,13 @@
 //                              id, enabled, name, continent (the server's name), expansion, expansionName, zone}
 //   waypoint_request(id, expedition, group, autoconfirm)   OP_WaypointRequest: travel (id), the expedition, or (id 0)
 //                              the two check boxes' states
+//   pets()                     the Pet window's #petcmd part (nms_petcmd.h): pets (OP_PetList's order) {id, class,
+//                              word (the server's class word, "" for none), className, name ("" before the spawn
+//                              came), hp (percent), focused (the pet window's)}; verbs {word, label, toggle, swarm};
+//                              swarm {hold, ghold, focus, assist} (each absent until the server said)
+//   pet_command(verb, state, target)   "/say #petcmd <verb> [on|off] <target>" (all, swarm or a class word); a word
+//                              the server does not take is refused; the echo is hidden
+//   pet_swarm_query()          asks the swarm pets' settings once a zone (the answers are hidden)
 
 #include <algorithm>
 #include <string>
@@ -473,6 +480,63 @@ int f_waypoint_request(void*, const NmscArgs* args, NmscOut*) {
     return 0;
 }
 
+// ---- the Pet window's #petcmd
+
+int f_pets(void*, const NmscArgs*, NmscOut* o) {
+    Nms* n = active();
+    if (!n) return 0;
+    const std::uint32_t focused = player().pet_id;
+    Out out{o};
+    out.table();
+    out.key("pets");
+    out.array();
+    for (const PetListEntry& pet : n->pets()) {
+        const auto s = spawn(pet.spawn_id);
+        out.table();
+        out.field("id", pet.spawn_id);
+        out.field("class", pet.class_id);
+        out.field_text("word", std::string(pet_class_word(pet.class_id)));
+        out.field_text("className", pet_class_name(pet.class_id));
+        out.field_text("name", s ? std::string(s->name) : std::string());
+        out.field("hp", s ? s->hp_percent : 0);
+        out.field_flag("focused", pet.spawn_id == focused);
+        out.end();
+    }
+    out.end();
+    out.key("verbs");
+    out.array();
+    for (const PetVerb& v : pet_verbs()) {
+        out.table();
+        out.field_text("word", v.word);
+        out.field_text("label", v.label);
+        out.field_flag("toggle", v.toggle);
+        out.field_flag("swarm", v.swarm);
+        out.end();
+    }
+    out.end();
+    out.key("swarm");
+    out.table();
+    for (const auto& [name, on] : n->pet_commands.swarm()) out.field_flag(name.c_str(), on);
+    out.end();
+    out.end();
+    return 1;
+}
+
+int f_pet_command(void*, const NmscArgs* args, NmscOut*) {
+    Nms* n = active();
+    if (!n) return 0;
+    if (auto line = n->pet_commands.command(arg_string(args, 0), arg_string(args, 1), arg_string(args, 2)))
+        command_line("/say " + *line);
+    return 0;
+}
+
+int f_pet_swarm_query(void*, const NmscArgs*, NmscOut*) {
+    Nms* n = active();
+    if (!n) return 0;
+    if (auto line = n->pet_commands.query_swarm()) command_line("/say " + *line);
+    return 0;
+}
+
 } // namespace
 
 void register_ui_functions() {
@@ -491,7 +555,10 @@ void register_ui_functions() {
                       {"vault_say", f_vault_say},
                       {"vault_window", f_vault_window},
                       {"waypoints", f_waypoints},
-                      {"waypoint_request", f_waypoint_request}};
+                      {"waypoint_request", f_waypoint_request},
+                      {"pets", f_pets},
+                      {"pet_command", f_pet_command},
+                      {"pet_swarm_query", f_pet_swarm_query}};
     for (const auto& f : kFunctions) nmsc->add_ui_function(nmsc->host, f.name, f.fn, nullptr);
 }
 

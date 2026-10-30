@@ -510,3 +510,168 @@ TEST_CASE("NMS plugin windows: Personal Loot, the Autoplay Console, the vault an
         platform::set_data_dir_for_tests({});
     }
 }
+
+TEST_CASE("NMS plugin: the Pet window's #petcmd (the server's zone/gm_commands/petcmd.cpp)") {
+    Host h;
+    net::GameConnection& c = h.c();
+    REQUIRE(h.plugins->load("nms"));
+    auto before = h.call("pets");
+    CHECK((!before || before->kind == plugin::UiValue::Kind::Nil)); // not before it sees an NMS server
+    h.zone_in({nms::op::ClientReport, {}});
+    auto& w = c.world_for_test();
+    for (std::uint32_t id : {300u, 301u, 302u}) {
+        game::Spawn s;
+        s.id = id;
+        s.name = "Pet" + std::to_string(id);
+        s.is_npc = true;
+        s.pet_owner_id = 1;
+        s.hp_percent = 80;
+        w.spawns[id] = s;
+    }
+    h.zone_in(nms::encode_pet_list({{300, 13}, {301, 11}, {302, 0}}));
+    auto st = h.call("pets");
+    REQUIRE(st);
+    const auto& pets = st->field("pets")->items;
+    REQUIRE(pets.size() == 3);
+    CHECK(pets[0].field("word")->s == "mag");
+    CHECK(pets[0].field("className")->s == "Magician");
+    CHECK(pets[0].field("name")->s == "Pet300");
+    CHECK(pets[0].field("hp")->i == 80);
+    CHECK(pets[0].field("focused")->b);
+    CHECK(pets[1].field("word")->s == "nec");
+    CHECK(pets[2].field("word")->s == ""); // a charmed pet: no class to name
+    CHECK(st->field("verbs")->items.size() == 18);
+    CHECK(st->field("swarm")->fields.empty());
+
+    // A button: "/say #petcmd <command> [on|off] <pets>".
+    h.ran.clear();
+    h.call("pet_command", {plugin::UiValue::string("attack"), plugin::UiValue::string(""), plugin::UiValue::string("mag")});
+    h.call("pet_command", {plugin::UiValue::string("taunt"), plugin::UiValue::string("off"), plugin::UiValue::string("all")});
+    // Refused: a word the server does not take, a state on a plain command, swarm pets' unsupported commands.
+    h.call("pet_command", {plugin::UiValue::string("dance"), plugin::UiValue::string(""), plugin::UiValue::string("all")});
+    h.call("pet_command", {plugin::UiValue::string("sit"), plugin::UiValue::string("on"), plugin::UiValue::string("all")});
+    h.call("pet_command", {plugin::UiValue::string("follow"), plugin::UiValue::string(""), plugin::UiValue::string("swarm")});
+    h.call("pet_command", {plugin::UiValue::string("attack"), plugin::UiValue::string(""), plugin::UiValue::string("xyz")});
+    CHECK(h.ran == std::vector<std::string>{"/say #petcmd attack mag", "/say #petcmd taunt off all"});
+    // Their echoes are hidden; the player's own #petcmd is not.
+    h.chat();
+    c.ui_message("You say, '#petcmd attack mag'");
+    c.ui_message("You say, '#petcmd taunt off all'");
+    c.ui_message("You say, '#petcmd attack mag'");
+    CHECK(h.chat() == std::vector<std::string>{"You say, '#petcmd attack mag'"});
+
+    // The swarm query: once a zone, its four answers hidden and kept; later ones shown and kept.
+    h.ran.clear();
+    h.call("pet_swarm_query");
+    h.call("pet_swarm_query");
+    CHECK(h.ran == std::vector<std::string>{"/say #petcmd hold ghold focus assist swarm"});
+    c.ui_message("You say, '#petcmd hold ghold focus assist swarm'");
+    c.ui_message("Swarm pet hold setting: ON");
+    c.ui_message("Swarm pet ghold setting: OFF");
+    c.ui_message("Swarm pet focus setting: OFF");
+    c.ui_message("Swarm pet assist setting: ON");
+    c.ui_message("Swarm pet hold setting: OFF");
+    CHECK(h.chat() == std::vector<std::string>{"Swarm pet hold setting: OFF"});
+    const auto after = h.call("pets");
+    REQUIRE(after);
+    const auto* sw = after->field("swarm");
+    REQUIRE(sw);
+    CHECK_FALSE(sw->field("hold")->b);
+    CHECK(sw->field("assist")->b);
+    CHECK_FALSE(sw->field("ghold")->b);
+    h.hooks.zone(plugin::ZonePhase::Zoned);
+    h.ran.clear();
+    h.call("pet_swarm_query");
+    CHECK(h.ran.size() == 1);
+}
+
+TEST_CASE("NMS plugin windows: the Pet window covers the pack's on an NMS server, in the Modern and Gamepad UIs") {
+    struct Pack {
+        const char* pack;
+        const char* window;    // its ImGui name
+        const char* folded;    // the setting that shows the stock buttons
+    };
+    const Pack packs[] = {{"modern", "Pet###modern.PetInfoWindow", "nms.pet.commandsOpen"},
+                          {"gamepad", "Pet", "nms.pet.stockCommands"}};
+    for (const Pack& pk : packs) {
+        INFO(pk.pack);
+        Host h;
+        net::GameConnection& c = h.c();
+        const fs::path dir = h.world.dir;
+        const fs::path src = fs::path(__FILE__).parent_path().parent_path() / "ui" / pk.pack;
+        fs::copy(src, dir / pk.pack, fs::copy_options::recursive);
+        platform::set_data_dir_for_tests(dir);
+        REQUIRE(h.plugins->load("nms"));
+        auto& w = c.world_for_test();
+        for (std::uint32_t id : {300u, 301u}) {
+            game::Spawn s;
+            s.id = id;
+            s.name = "Pet" + std::to_string(id);
+            s.is_npc = true;
+            s.pet_owner_id = 1;
+            w.spawns[id] = s;
+        }
+
+        ImGuiContext* ctx = ImGui::CreateContext();
+        ImGui::GetIO().IniFilename = nullptr;
+        unsigned char* px = nullptr;
+        int tw = 0, th = 0;
+        ImGui::GetIO().Fonts->GetTexDataAsRGBA32(&px, &tw, &th);
+        {
+            ui::ChatView view;
+            app::EqHost host;
+            host.game = h.world.game.get();
+            host.conn = &c;
+            host.chat = &view;
+            host.in_game = host.ui_ready = true;
+            host.plugin_ui = &h.bridge;
+            app::EqApi api(host);
+            ui::lua::LuaUi lua(dir / pk.pack, dir / "ui.txt");
+            lua.add_eq_api([&](lua_State* L) { api.register_functions(L); });
+            api.load_layout(dir / "defaults.ini", dir / "UI_Test_Server.ini", {});
+            auto frames = [&](int n) {
+                for (int i = 0; i < n; ++i) {
+                    std::vector<ui::lua::LuaUi::Folder> folders;
+                    for (const auto& [name, folder] : h.bridge.folders()) folders.push_back({name, folder / "ui" / pk.pack});
+                    lua.set_folders(std::move(folders));
+                    h.hooks.pulse();
+                    ImGuiIO& io = ImGui::GetIO();
+                    io.DisplaySize = ImVec2(1920, 1080);
+                    io.DeltaTime = 1.0f / 60.0f;
+                    api.begin_frame();
+                    ImGui::NewFrame();
+                    lua.frame();
+                    ImGui::Render();
+                }
+            };
+            auto run = [&](const char* code) {
+                REQUIRE(luaL_dostring(lua.state(), code) == LUA_OK);
+            };
+            api.show("PetInfoWindow", true);
+            frames(3);
+            if (std::string(pk.pack) == "gamepad") run("GPSTATE.openPet()");
+            frames(3);
+            CHECK_FALSE(has_window("UI errors"));
+            // A stock server: the pack's own window (ui.base_window).
+            REQUIRE(window_active(pk.window));
+            const float stock_width = ImGui::FindWindowByName(pk.window)->Size.x;
+            // The NMS server: the plugin's, wider, with the #petcmd part.
+            h.zone_in({nms::op::ClientReport, {}});
+            h.zone_in(nms::encode_pet_list({{300, 13}, {301, 11}}));
+            frames(3);
+            CHECK_FALSE(has_window("UI errors"));
+            REQUIRE(window_active(pk.window));
+            CHECK(ImGui::FindWindowByName(pk.window)->Size.x > stock_width);
+            // The stock buttons shown, then rolled up again.
+            run((std::string("ui.SetSetting('") + pk.folded + "', true)").c_str());
+            frames(2);
+            CHECK_FALSE(has_window("UI errors"));
+            run((std::string("ui.SetSetting('") + pk.folded + "', false)").c_str());
+            frames(2);
+            CHECK_FALSE(has_window("UI errors"));
+            CHECK(window_active(pk.window));
+        }
+        ImGui::DestroyContext(ctx);
+        platform::set_data_dir_for_tests({});
+    }
+}

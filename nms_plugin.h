@@ -24,6 +24,7 @@
 #include "nms_loot.h"
 #include "nms_options.h"
 #include "nms_packets.h"
+#include "nms_petcmd.h"
 #include "nms_rules.h"
 #include "nms_vault.h"
 #include "nms_waypoints.h"
@@ -80,6 +81,7 @@ public:
     void pets_command() const;
     void petcycle_command() const;
     void petdebug_command() const;
+    const std::vector<PetListEntry>& pets() const { return pets_; } // OP_PetList, as it came
 
     // ---- for the windows (nms_ui.cpp) ----
     void send_loot(const LootSend& a);
@@ -90,6 +92,7 @@ public:
     PersonalLoot loot;
     Vault vault;
     Cooldowns cooldowns;
+    PetCommands pet_commands; // the Pet window's #petcmd lines (nms_petcmd.h)
     SkillTimers skill_timers;
     std::optional<WaypointList> waypoints;
     std::uint32_t waypoint_serial = 0; // each list shows the window again (FUN_101954a0), and /waypoint

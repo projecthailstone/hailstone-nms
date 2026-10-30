@@ -61,14 +61,6 @@ std::string next_arg(std::string_view& rest) {
     return word;
 }
 
-// multi_pet.cpp GetClassName: the summoning class OP_PetList carries.
-const char* pet_class_name(std::uint32_t id) {
-    static constexpr const char* kNames[] = {"Warrior", "Cleric", "Paladin", "Ranger", "Shadow Knight", "Druid", "Monk",
-                                             "Bard", "Rogue", "Shaman", "Necromancer", "Wizard", "Magician",
-                                             "Enchanter", "Beastlord", "Berserker"};
-    return id >= 1 && id <= 16 ? kNames[id - 1] : "Unknown";
-}
-
 // The commands the patch and its add-ons add, from the moment the plugin sees an NMS server.
 constexpr const char* kCommands[] = {"/nmsloot", "/fov",    "/camera",    "/autoskill", "/waypoint",
                                      "/waypoints", "/pets", "/petcycle", "/petdebug"};
@@ -394,6 +386,7 @@ void Nms::send_cauth() {
 }
 
 void Nms::zoned() {
+    pet_commands.zoned();
     // NMS OP_CAuth: the first 8 bytes, XORed with the server key, must read as classes bit mask × own spawn id
     // (zone/client_packet.cpp Handle_OP_CAuth).
     if (!detected_ || options.auth_key == 0 || player().spawn_id == 0) return;
@@ -470,6 +463,7 @@ bool Nms::filter_chat(const std::string& text) {
     // The patch's dsp_chat detour (FUN_10119d80): "Your song ends." for a mask without Bard, the vault's lines and the
     // echoes of the vault's and console's own commands ("You say, '#autoskill ...", nms_rules.h hide_patch_line).
     if (!detected_) return false;
+    if (pet_commands.on_chat(text)) return true; // the Pet window's own lines (nms_petcmd.h)
     if (text == "Your song ends." && hide_song_ends(class_mask())) return true;
     vault.on_chat(text); // the vault's VAULTDATA lines (FUN_10199a20), hidden below
     return hide_patch_line(text);
