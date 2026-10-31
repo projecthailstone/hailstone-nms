@@ -72,8 +72,9 @@ plugin passes it to the core whenever it comes.
   option "Hide My Pets in Extended Target", on by default; Hailstone's, not the patch's).
 - **Chat**: `/who` in the patch's form; the vault's VAULTDATA lines and the patch's other lines hidden; OP_Weblink's
   URL shown in chat (this client opens no browser).
-- **Commands**: `/loot` (and `/nmsloot`), `/fov` (and `/camera`: the camera's zoom limit, 10 to 150), `/autoskill`,
-  `/waypoint`, `/pets`, `/petcycle`, `/petdebug`, and `/alt toggle <id>` (the server's `#alttoggle`).
+- **Commands**: `/loot` (and `/nmsloot`), `/autoskill`, `/waypoint`, `/pets`, `/petcycle`, `/petdebug`, and
+  `/alt toggle <id>` (the server's `#alttoggle`). Not the patch's `/fov` and `/camera` (the camera's zoom limit): the
+  client's own options set the field of view and the zoom limit.
 
 ## Its windows
 

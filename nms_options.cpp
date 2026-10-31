@@ -2,7 +2,6 @@
 
 #include <cctype>
 #include <cstdlib>
-#include <format>
 
 #include "nms_ini.h"
 
@@ -59,17 +58,6 @@ std::vector<std::string> split_words(std::string_view list) {
         at = end + 1;
     }
     return out;
-}
-
-std::string fov_command(const std::string& args, float& max_camera_distance) {
-    std::string a = args;
-    while (!a.empty() && a.front() == ' ') a.erase(a.begin());
-    if (a.empty()) return std::format("Current Max Zoom Distance is: {:f}", max_camera_distance);
-    float v = std::strtof(a.c_str(), nullptr);
-    if (v < 10.0f || v > 150.0f)
-        return "Usage: /fov <zoom_distance> (min 10, max 150. Default is usually around 53. Try /fov 90)";
-    max_camera_distance = v;
-    return std::format("Max zoom distance set to {:f}", v);
 }
 
 } // namespace nms

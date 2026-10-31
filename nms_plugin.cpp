@@ -62,8 +62,9 @@ std::string next_arg(std::string_view& rest) {
 }
 
 // The commands the patch and its add-ons add, from the moment the plugin sees an NMS server.
-constexpr const char* kCommands[] = {"/nmsloot", "/fov",    "/camera",    "/autoskill", "/waypoint",
-                                     "/waypoints", "/pets", "/petcycle", "/petdebug"};
+// The patch's /fov (and /camera) is not one: the client's own options set the field of view and the zoom limit.
+constexpr const char* kCommands[] = {"/nmsloot", "/autoskill", "/waypoint", "/waypoints",
+                                     "/pets",    "/petcycle",  "/petdebug"};
 
 void on_command(void* user, const char* args) { g_nms.command(static_cast<const char*>(user), args ? args : ""); }
 
@@ -597,12 +598,7 @@ void Nms::run_scribe(const NmscItemSlot& slot, std::uint8_t target_class) {
 
 void Nms::command(const std::string& word, const std::string& args) {
     if (word == "/nmsloot") loot_command(args); // the shipped patch's name for its loot window's command
-    else if (word == "/fov" || word == "/camera") { // the patch's CmdFov: the max zoom distance
-        float max = nmsc->max_camera_distance(nmsc->host);
-        const float before = max;
-        chat(fov_command(args, max));
-        if (max != before) nmsc->set_max_camera_distance(nmsc->host, max);
-    } else if (word == "/autoskill") autoskill_command(args); // the patch's console (FUN_1016c310)
+    else if (word == "/autoskill") autoskill_command(args); // the patch's console (FUN_1016c310)
     else if (word == "/waypoint" || word == "/waypoints") waypoint_command(args);
     else if (word == "/pets") pets_command(); // MultiPet's commands (multi_pet.cpp)
     else if (word == "/petcycle") petcycle_command();
