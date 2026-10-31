@@ -152,7 +152,7 @@ std::int64_t now_ms();
 // The player as the client knows it; size 0 when it cannot be read.
 NmscPlayer player();
 bool player_spawned(const NmscPlayer& p); // its spawn is in the zone (the original's pinstLocalPlayer)
-bool in_zone(const NmscPlayer& p);        // in a zone (the connection's InZone)
+bool in_zone(const NmscPlayer& p);        // in a zone (the connection's InZone or Camping)
 std::optional<NmscSpell> spell(std::uint32_t id);
 std::optional<NmscSpawn> spawn(std::uint32_t id);
 std::optional<NmscItem> item(const NmscItemSlot& slot);
