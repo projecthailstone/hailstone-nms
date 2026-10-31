@@ -204,17 +204,6 @@ std::optional<std::pair<std::uint32_t, std::uint32_t>> decode_discipline_timer(B
     });
 }
 
-std::optional<std::string> decode_weblink(Bytes p) {
-    if (p.empty()) return std::nullopt;
-    std::string s;
-    for (std::byte b : p) {
-        if (b == std::byte{0}) break;
-        s.push_back(static_cast<char>(b));
-    }
-    if (s.empty()) return std::nullopt;
-    return s;
-}
-
 std::optional<WaypointList> decode_waypoint_list(Bytes p) {
     return decode_with(p, [](ByteReader& r) {
         WaypointList v;

@@ -114,9 +114,6 @@ Packet encode_skill_timers(const SkillTimers& v); // server direction, for tests
 // ---- OP_DisciplineTimer, zone -> client: {u32 id, u32 seconds left, u32}; only the first two are read ----
 std::optional<std::pair<std::uint32_t, std::uint32_t>> decode_discipline_timer(Bytes p);
 
-// ---- OP_Weblink 0x6f4b, zone -> client: the URL, NUL-terminated ----
-std::optional<std::string> decode_weblink(Bytes p);
-
 // ---- OP_WaypointList 0x1402, zone -> client (zone/nms_waypoints.cpp SendWaypointList, packed) ----
 // {bool group_enabled, expedition_enabled, group_selected, force_show, autoconfirm_selected; u32 count;
 //  count x {i32 category, i32 id, u8 enabled, char name[64]}}.

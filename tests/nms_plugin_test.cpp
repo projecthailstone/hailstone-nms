@@ -171,6 +171,7 @@ TEST_CASE("NMS plugin: out until it sees an NMS server, then the patch's rules, 
 
     // OP_ServerAuthStats: key 1 the live mask; keys 2..7 the server's HP, mana and endurance (and the points now).
     CHECK_FALSE(h.zone_in(nms::encode_server_auth_stats({{1, 0x3}, {2, 2775}, {5, 3100}, {6, 1950}})));
+    CHECK(h.zone_in({0x6f4b, {std::byte{'h'}, std::byte{0}}})); // OP_Weblink: on to the core here too
     CHECK(c.server_class_mask() == 0x3);
     const auto v = h.chain.character_vitals(c);
     CHECK(v.cur_hp == 2775);
