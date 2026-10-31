@@ -1,6 +1,6 @@
 #pragma once
 
-// The NMS plugin's settings (nms.ini) and the patch's /fov.
+// The NMS plugin's settings (nms.ini).
 
 #include <cstdint>
 #include <string>
@@ -42,15 +42,10 @@ struct Options {
 // there and are named in `warnings`.
 Options read_options(const std::vector<const Ini*>& layers, std::vector<std::string>* warnings = nullptr);
 
-// The patch's /fov (and /camera) <10..150>: despite the name it sets the maximum camera zoom distance
-// (__gfMaxZoomCameraDistance and __gfMaxCameraDistance, MQ2Commands.cpp CmdFov), not the field of view. Returns the
-// line to print; `max_camera_distance` changes when the argument is in range.
 // Whether the server is one of `words` (case-insensitive; each word somewhere in the saved server's name or the
 // world's name, as server_info gives them). An empty word never matches.
 bool server_matches(std::string_view name, std::string_view world, const std::vector<std::string>& words);
 // "a, b ,c" -> {"a", "b", "c"} (empty parts dropped).
 std::vector<std::string> split_words(std::string_view list);
-
-std::string fov_command(const std::string& args, float& max_camera_distance);
 
 } // namespace nms

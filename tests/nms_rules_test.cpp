@@ -340,7 +340,7 @@ TEST_CASE("NMS vitals detours: Max / Cur HP, mana and endurance (notes §2c, EQC
     CHECK_FALSE(none.cur_endurance);
 }
 
-TEST_CASE("NMS options (nms.ini) and /fov") {
+TEST_CASE("NMS options (nms.ini)") {
     nms::Ini global, profile, server;
     global.parse("[NMS]\nauth_key=11\nhardware_id=none\nxtarget_hide_pets=0\n");
     nms::Options o = nms::read_options({&global});
@@ -364,13 +364,6 @@ TEST_CASE("NMS options (nms.ini) and /fov") {
     CHECK(nms::read_options({}).auth_key == nms::kPatchAuthKey);
     CHECK(nms::kPatchAuthKey == 352236586u);
     CHECK(nms::read_options({nullptr}).xtarget_hide_pets);
-
-    float max = 60.0f;
-    CHECK(nms::fov_command("", max) == "Current Max Zoom Distance is: 60.000000");
-    CHECK(nms::fov_command(" 90", max) == "Max zoom distance set to 90.000000");
-    CHECK(max == 90.0f);
-    CHECK(nms::fov_command("200", max).starts_with("Usage: /fov"));
-    CHECK(max == 90.0f);
 }
 
 TEST_CASE("NMS ini files") {

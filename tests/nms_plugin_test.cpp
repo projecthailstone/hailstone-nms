@@ -210,11 +210,11 @@ TEST_CASE("NMS plugin: out until it sees an NMS server, then the patch's rules, 
     REQUIRE(lines);
     CHECK((*lines)[0] == "[Morsal] - [60 WAR/CLR (Human)]");
 
-    // Its commands: /fov sets the camera's zoom limit; /alt toggle becomes the server's #alttoggle.
+    // Its commands: not the patch's /fov or /camera (the client's options set the field of view and the zoom limit);
+    // /alt toggle becomes the server's #alttoggle.
     h.chat();
-    CHECK(h.command("/fov 90"));
-    CHECK(h.max_zoom == 90.0f);
-    CHECK(contains(h.chat(), "Max zoom distance set to 90"));
+    CHECK_FALSE(h.command("/fov 90"));
+    CHECK_FALSE(h.command("/camera 90"));
     CHECK(h.chain.handler_command(c, "cmd_alternateadv", "toggle 123"));
     CHECK(contains(h.ran, "/say #alttoggle 123"));
     CHECK_FALSE(h.chain.handler_command(c, "cmd_alternateadv", "buy 123"));
