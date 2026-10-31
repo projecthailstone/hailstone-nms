@@ -117,7 +117,12 @@ TEST_CASE("NMS displays (notes §3.6, §3.7, §3.10)") {
     CHECK_FALSE(nms::hide_song_ends(0));
     auto orig = of(minor_healing());
     CHECK(nms::level_needed_line(orig, bit(2) | bit(3), 8) == "Level Needed: CLR(1) PAL(9)");
-    CHECK(nms::level_needed_line(orig, bit(1), 8) == "Level Needed: CANNOT USE");
+    // Hailstone difference: the classes that can use it follow "CANNOT USE".
+    CHECK(nms::level_needed_line(orig, bit(1), 8) ==
+          "Level Needed: CANNOT USE - CLR(1) PAL(9) RNG(9) DRU(1) SHM(1) BST(9)");
+    std::array<std::uint8_t, 16> nobody{};
+    nobody.fill(255);
+    CHECK(nms::level_needed_line(of(nobody), bit(1), 8) == "Level Needed: CANNOT USE");
     CHECK(nms::level_needed_line(orig, 0, 2) == "Level Needed: CLR(1)");
     CHECK(nms::list_level(orig, bit(3)) == 9);
     CHECK(nms::list_level(orig, bit(1)) == 1); // no mask class: the minimum over all 16

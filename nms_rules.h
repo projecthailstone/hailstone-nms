@@ -109,7 +109,8 @@ inline bool hide_song_ends(std::uint32_t mask) { return mask != 0 && !has_class(
 bool hide_patch_line(std::string_view text);
 // The item display's "Level Needed: " line for a spell scroll (FUN_101507b0 / ScrubTooltipLevelNeeded):
 // "Level Needed: CLR(1) WIZ(4)", one per mask class with a level byte other than 0 and 255, "Level Needed: CANNOT
-// USE" when none; with mask 0 the visible class alone.
+// USE" when none; with mask 0 the visible class alone. A Hailstone difference: when none, every class that can use
+// the scroll follows ("Level Needed: CANNOT USE - CLR(1) PAL(9)"); the patch shows "CANNOT USE" alone.
 std::string level_needed_line(const LevelOf& orig, std::uint32_t mask, std::uint32_t visible);
 // The merchant (col 7) and bazaar (col 8) Lvl columns for a spell scroll (§3.6): the minimum over the mask's
 // classes; else the minimum over all 16 classes when one can use it; nullopt = "--".

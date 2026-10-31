@@ -115,22 +115,23 @@ std::string class_code(std::uint32_t class_id) {
 }
 
 std::string level_needed_line(const LevelOf& orig, std::uint32_t mask, std::uint32_t visible) {
-    std::string out = "Level Needed: ";
-    bool any = false;
-    auto add = [&](std::uint32_t c) {
-        std::uint8_t l = orig(c);
-        if (l == 0 || l == 255) return;
-        if (any) out += ' ';
-        out += std::format("{}({})", kCodes[c - 1], l);
-        any = true;
+    auto codes = [&orig](auto&& wanted) {
+        std::string out;
+        for (std::uint32_t c = 1; c <= 16; ++c) {
+            if (!wanted(c)) continue;
+            std::uint8_t l = orig(c);
+            if (l == 0 || l == 255) continue;
+            if (!out.empty()) out += ' ';
+            out += std::format("{}({})", kCodes[c - 1], l);
+        }
+        return out;
     };
-    if (mask) {
-        for (std::uint32_t c = 1; c <= 16; ++c)
-            if (has_class(mask, c)) add(c);
-    } else if (visible >= 1 && visible <= 16) {
-        add(visible);
-    }
-    return any ? out : "Level Needed: CANNOT USE";
+    std::string mine = mask ? codes([mask](std::uint32_t c) { return has_class(mask, c); })
+                            : codes([visible](std::uint32_t c) { return c == visible; });
+    if (!mine.empty()) return "Level Needed: " + mine;
+    // Hailstone difference: the patch stops at "CANNOT USE"; the classes that can use the scroll follow it here.
+    std::string all = codes([](std::uint32_t) { return true; });
+    return all.empty() ? "Level Needed: CANNOT USE" : "Level Needed: CANNOT USE - " + all;
 }
 
 std::optional<std::uint8_t> list_level(const LevelOf& orig, std::uint32_t mask) {

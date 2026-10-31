@@ -64,6 +64,9 @@ plugin passes it to the core whenever it comes.
   mask came, and the login checksums with the patch's VM values (never real hardware ids) once the world sent
   OP_SendCharacterSets.
 - **Discipline timers** from 20 up: the patch's band table and its own reuse map.
+- **A spell scroll's Level Needed line**: the player's classes with their levels ("Level Needed: CLR(1) PAL(9)").
+  When none of them can use the scroll, the classes that can follow ("Level Needed: CANNOT USE - CLR(1) PAL(9)";
+  Hailstone's, the patch shows "CANNOT USE" alone).
 - **The scribe path**: a right click on a scroll or tome scribes it (the book, the sit, the click again 100 ms
   later).
 - **Several pets**: OP_PetList into the core (the pet window's gauges, the focused pet); `/pets`, `/petcycle`,
