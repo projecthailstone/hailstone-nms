@@ -368,10 +368,10 @@ bool Nms::zone_packet(NmscPacket& p, std::int64_t now) {
         if (waypoints) ++waypoint_serial;
         return true;
     case op::Weblink:
-        // The patch opens the URL in its WebView2 or the system browser per /browser (default off: ignored). This
-        // client never opens a browser itself: it shows the URL in chat.
-        if (auto url = decode_weblink(data)) chat("Web link: " + *url);
-        return true;
+        // The patch opens the URL in its WebView2 or the system browser per /browser on|external|off (default off:
+        // swallowed). Passed on: the core opens it as the stock client does (docs/browser.md), a deliberate
+        // difference from the patch's default.
+        return false;
     case op::DisciplineTimer:
         // The stock SetDisciplineReuseTimer keeps ids 0..19; the patch's detour keeps ids >= 20 in its map (ready =
         // now + seconds). Passed on.

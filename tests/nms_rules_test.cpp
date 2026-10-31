@@ -227,9 +227,6 @@ TEST_CASE("NMS server packets round trip") {
     CHECK(wd->entries[0].name == "The Plane of Knowledge");
     CHECK(nms::encode(nms::WaypointRequest{7, false, true, false}).data.size() == 7);
 
-    const std::vector<std::byte> web{std::byte{'h'}, std::byte{'i'}, std::byte{0}, std::byte{0}};
-    CHECK(nms::decode_weblink(web) == "hi");
-    CHECK_FALSE(nms::decode_weblink(std::vector<std::byte>{std::byte{0}}));
 
     auto st = nms::encode_server_auth_stats({{1, 0x2}, {2, 100}});
     CHECK(st.opcode == nms::op::ServerAuthStats);
