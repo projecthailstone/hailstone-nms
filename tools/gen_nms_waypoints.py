@@ -10,7 +10,7 @@ Docker stack (NMS-Release) running:
       coalesce(z.expansion, -1) from nms_waypoints w left join zone z on z.short_name = w.shortname
       and z.version = 0 order by w.id" | tools/gen_nms_waypoints.py > plugins/nms/nms_waypoints.inc
 
-plugins/projecttriune/triune_waypoints.inc is the same output (a copy of the NMS server's table until Triune's own
+plugins/projecttriune/triune_waypoints.inc (a private plugin, when checked out) is the same output (a copy of the NMS server's table until Triune's own
 rows are known); regenerate it the same way with that file as the destination.
 """
 import sys
