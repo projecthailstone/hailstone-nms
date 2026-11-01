@@ -23,7 +23,7 @@ as its own artifact, `hailstone-nms-<platform>`. The plugin is not part of the d
   They land in `servers/<profile>/plugins/nms/`, and the server's copy wins over a player's.
 
 It loads on any server and does nothing until it sees an NMS server. Project Triune runs a newer build of the same
-patch and sends the same packets; it has its own plugin (docs/plugins/projecttriune.md), and this one stands down on
+patch and sends the same packets; it has its own plugin (`plugins/projecttriune`, kept in a private repository), and this one stands down on
 a server whose saved name or world name contains a word of `skip_servers` (default `triune`): it then touches no
 packet, so that plugin sees them.
 
