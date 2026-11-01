@@ -161,7 +161,7 @@ TEST_CASE("NMS plugin: out until it sees an NMS server, then the patch's rules, 
     CHECK(c.guild_member_class(2) == "CLR");
     REQUIRE(h.bridge.options().size() == 1);
     CHECK(h.bridge.options()[0].name == "xtarget_hide_pets");
-    REQUIRE(h.bridge.menu().size() == 2);
+    REQUIRE(h.bridge.menu().size() == 1); // Personal Loot (no Autoplay Console)
     CHECK(h.bridge.menu()[0].command == "/loot show");
 
     // The login checksums now carry the patch's VM values (never real ids).
@@ -219,6 +219,15 @@ TEST_CASE("NMS plugin: out until it sees an NMS server, then the patch's rules, 
     CHECK(h.chain.handler_command(c, "cmd_alternateadv", "toggle 123"));
     CHECK(contains(h.ran, "/say #alttoggle 123"));
     CHECK_FALSE(h.chain.handler_command(c, "cmd_alternateadv", "buy 123"));
+    // /autoskill alone opens the client's Ability Book (the patch's Autoplay Console is not ported); with words it is
+    // the server's #autoskill.
+    h.ran.clear();
+    CHECK(h.command("/autoskill"));
+    CHECK(h.ran == std::vector<std::string>{"/abilitybook"});
+    h.ran.clear();
+    CHECK(h.command("/autoskill Kick enable"));
+    CHECK(h.ran == std::vector<std::string>{"#autoskill Kick enable"});
+    CHECK_FALSE(h.call("autoplay"));
     CHECK(h.command("/pets"));
     CHECK(contains(h.chat(), "You have no pets."));
 
@@ -348,7 +357,6 @@ bool window_active(const std::string& name) {
 struct PackNames {
     const char* pack;
     const char* loot;
-    const char* autoplay;
     const char* vault;
     const char* bag; // a vault bag's own window (the Gamepad pack draws the open bag inside the vault)
     const char* waypoints;
@@ -357,12 +365,11 @@ struct PackNames {
 
 } // namespace
 
-TEST_CASE("NMS plugin windows: Personal Loot, the Autoplay Console, the vault and the waypoints in the Modern and Gamepad UIs") {
+TEST_CASE("NMS plugin windows: Personal Loot, the vault and the waypoints in the Modern and Gamepad UIs") {
     const PackNames packs[] = {
-        {"modern", "Personal Loot (1)###modern.NmsLootWnd", "Autoplay Console###modern.NmsAutoplayWnd",
-         "Dimensional Vault###modern.NmsVaultWnd", "Backpack##bag_3", "Attune the Map###modern.WaypointsWnd",
+        {"modern", "Personal Loot (1)###modern.NmsLootWnd", "Dimensional Vault###modern.NmsVaultWnd", "Backpack##bag_3", "Attune the Map###modern.WaypointsWnd",
          "Notes###modern.PlayerNotesWindow"},
-        {"gamepad", "Personal Loot", "Autoplay Console", "Dimensional Vault", nullptr, "Attune the Map", "Notes"},
+        {"gamepad", "Personal Loot", "Dimensional Vault", nullptr, "Attune the Map", "Notes"},
     };
     for (const PackNames& names : packs) {
         const char* pack = names.pack;
@@ -373,7 +380,6 @@ TEST_CASE("NMS plugin windows: Personal Loot, the Autoplay Console, the vault an
         const fs::path src = fs::path(__FILE__).parent_path().parent_path() / "ui" / pack;
         REQUIRE(fs::exists(src));
         fs::copy(src, dir / pack, fs::copy_options::recursive);
-        { std::ofstream(dir / "ui.txt") << "nms.ShowConsole=1\n"; }
         platform::set_data_dir_for_tests(dir); // (the notes window writes notes.txt there)
         REQUIRE(h.plugins->load("nms"));
 
@@ -428,18 +434,9 @@ TEST_CASE("NMS plugin windows: Personal Loot, the Autoplay Console, the vault an
             l.rows.push_back(r);
             h.zone_in(nms::encode(l));
             h.zone_in(nms::encode(nms::LootSettings{1, 0, 300, false, true}));
-            nms::SkillTimers t;
-            t.kick = 4;
-            t.autoskill = 1u << 2; // Kick on
-            h.zone_in(nms::encode_skill_timers(t));
             frames(5);
             CHECK_FALSE(has_window("UI errors"));
             CHECK(window_active(names.loot));
-            CHECK(window_active(names.autoplay));
-            auto ap = h.call("autoplay");
-            REQUIRE(ap);
-            REQUIRE(ap->field("console"));
-            CHECK(ap->field("console")->b);
             // The vault: its lines (which the patch hides) open it; a bag's window opens.
             h.chat();
             c.ui_message("VAULTDATA|CLEAR");
@@ -495,11 +492,9 @@ TEST_CASE("NMS plugin windows: Personal Loot, the Autoplay Console, the vault an
             // Closing hides them.
             h.command("/nmsloot hide");
             h.call("vault_window", {plugin::UiValue::string("hide")});
-            h.call("autoplay_console", {plugin::UiValue::boolean(false)});
             frames(3);
             CHECK_FALSE(has_window("UI errors"));
             CHECK_FALSE(window_active(names.vault));
-            CHECK_FALSE(window_active(names.autoplay));
             // The notes window (/note): one text the player edits.
             api.show("PlayerNotesWindow", true);
             frames(3);

@@ -195,7 +195,6 @@ void Nms::activate() {
                      set_xtarget_hide_pets, nullptr);
     // The patch's own windows (gamepad's More page and the EQ menu's Plugins).
     nmsc->add_menu(nmsc->host, "Personal Loot", "/loot show");
-    nmsc->add_menu(nmsc->host, "Autoplay Console", "/autoskill");
     log_info("NMS server detected");
 }
 
@@ -349,19 +348,13 @@ bool Nms::zone_packet(NmscPacket& p, std::int64_t now) {
         if (auto h = decode_loot_history(data)) loot.on_history(std::move(*h), now);
         return true;
     case op::SkillTimers:
-        // {backstab, bash, kick, strike, frenzy, autoskill mask} -> the patch's cooldown table (0x1035d634). The
-        // same handler also runs FUN_100eca90 on this buffer (byte 0: 0 merchant / 1 bank for the spawn id at +1);
-        // why is open (notes/nms-dinput8.md §5) and EQEmu's buffer starts with the backstab timer, so the client
-        // does not open windows from it.
-        if (auto t = decode_skill_timers(data)) {
-            skill_timers = *t;
-            cooldowns.on_skill_timers(*t, static_cast<std::uint32_t>(now));
-        }
+        // {backstab, bash, kick, strike, frenzy, autoskill mask}, which the patch kept for its Autoplay Console's
+        // cooldown table (0x1035d634). This plugin has no console (the client's Ability Book has autoskill), so the
+        // values are only kept. The same handler also runs FUN_100eca90 on this buffer (byte 0: 0 merchant / 1 bank
+        // for the spawn id at +1); why is open (notes/nms-dinput8.md §5) and EQEmu's buffer starts with the backstab
+        // timer, so the client does not open windows from it.
+        if (auto t = decode_skill_timers(data)) skill_timers = *t;
         return true;
-    case op::Taunt:
-        // The patch's cooldown slot 4 (Taunt) := 4 s, then passed on.
-        cooldowns.set(4, 4.0f, static_cast<std::uint32_t>(now));
-        return false;
     case op::WaypointList:
         // The waypoint window's list (nms_waypoints.h); the patch shows its window on every one.
         waypoints = decode_waypoint_list(data);
@@ -474,7 +467,7 @@ void Nms::pulse() {
 
 bool Nms::filter_chat(const std::string& text) {
     // The patch's dsp_chat detour (FUN_10119d80): "Your song ends." for a mask without Bard, the vault's lines and the
-    // echoes of the vault's and console's own commands ("You say, '#autoskill ...", nms_rules.h hide_patch_line).
+    // echoes of the vault's commands and of #autoskill ("You say, '#autoskill ...", nms_rules.h hide_patch_line).
     if (!detected_) return false;
     if (pet_commands.on_chat(text)) return true; // the Pet window's own lines (nms_petcmd.h)
     if (text == "Your song ends." && hide_song_ends(class_mask())) return true;
@@ -598,7 +591,7 @@ void Nms::run_scribe(const NmscItemSlot& slot, std::uint8_t target_class) {
 
 void Nms::command(const std::string& word, const std::string& args) {
     if (word == "/nmsloot") loot_command(args); // the shipped patch's name for its loot window's command
-    else if (word == "/autoskill") autoskill_command(args); // the patch's console (FUN_1016c310)
+    else if (word == "/autoskill") autoskill_command(args); // the patch's (FUN_1016c310), without its console
     else if (word == "/waypoint" || word == "/waypoints") waypoint_command(args);
     else if (word == "/pets") pets_command(); // MultiPet's commands (multi_pet.cpp)
     else if (word == "/petcycle") petcycle_command();
@@ -689,12 +682,13 @@ void Nms::waypoint_command(const std::string& args) {
 }
 
 void Nms::autoskill_command(const std::string& args) {
-    // FUN_1016c310: no argument toggles the console and says so; anything else goes to the server's #autoskill.
+    // FUN_1016c310: anything after the word goes to the server's #autoskill. With no argument the patch toggled its
+    // Multiclass Autoplay Console; this plugin has none (a deliberate difference: the client's own Ability Book has
+    // autoskill), so it opens the Ability Book instead.
     std::size_t i = 0;
     while (i < args.size() && std::isspace(static_cast<unsigned char>(args[i]))) ++i;
     if (i == args.size()) {
-        autoplay_console = !autoplay_console.value_or(false);
-        chat(std::string("[NMS] Multiclass Autoplay Console ") + (*autoplay_console ? "Enabled." : "Disabled."));
+        command_line("/abilitybook");
         return;
     }
     command_line("#autoskill " + args.substr(i));

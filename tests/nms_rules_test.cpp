@@ -609,25 +609,6 @@ TEST_CASE("NMS OP_SendCharacterSets decodes as the NMS world writes it") {
     CHECK(s->characters[0].sets == std::vector<std::uint32_t>{7});
 }
 
-TEST_CASE("NMS cooldowns: FUN_100ecf40 and the 0x1339 slots") {
-    nms::Cooldowns c;
-    CHECK(c.longest(0) == 10.0f); // the DLL's data
-    CHECK(c.longest(1) == 6.0f);
-    c.on_skill_timers({12, 0, 4, 9, 0, 0x5}, 1000);
-    CHECK(c.autoskill_mask() == 0x5);
-    CHECK(c.remaining(0, 1000) == 12.0f);
-    CHECK(c.longest(0) == 12.0f); // raised
-    CHECK(c.remaining(0, 3500) == doctest::Approx(9.5f));
-    CHECK(c.remaining(2, 1000) == 4.0f); // kick
-    CHECK(c.remaining(7, 1000) == 4.0f); // flying kick: kick
-    CHECK(c.remaining(5, 1000) == 9.0f); // dragon punch: strike
-    CHECK(c.remaining(1, 1000) == 0.0f); // 0 clears
-    CHECK(c.remaining(2, 9000) == 0.0f); // run out
-    c.set(4, 4.0f, 2000);                // OP_Taunt
-    CHECK(c.remaining(4, 3000) == 3.0f);
-    CHECK(c.longest(4) == 4.0f);
-}
-
 TEST_CASE("NMS: the discipline bands and the detour's refusal line") {
     CHECK(nms::discipline_band(4514) == 23);
     CHECK(nms::discipline_band(4499) == 21);
