@@ -12,14 +12,6 @@
 //   loot_rule(item, name, type)  sets (type 1..4) or removes (0) an item rule; saved at once
 //   loot_window(op [, value])  "show" (value true / false), "reload" (reread the rules file), "clearHistory", "prefs"
 //                              (value {autoOpen, autoClose, pinned, locked, countdown, sound}, the window's settings)
-//   autoplay()                 the Multiclass Autoplay Console (FUN_1000a430): console (nil until the UI gave its saved
-//                              state); rows: for each of the ten auto-skills whose classes meet the character's (the
-//                              class mask, else its class), {name, enabled (its autoskill bit), left (seconds),
-//                              fraction (left / the longest seen)}
-//   autoplay_console(shown)    shows or hides the console (the UI's saved state, or its close box)
-//   autoskill(name, enable)    a console check box: "/say #autoskill <name> enable|disable" (HideDoCommand)
-//   cooldowns()                the "Autoplay Cooldowns" window's rows (FUN_1000a960): for each auto-skill whose
-//                              autoskill bit is set and whose classes meet the character's, {name, left, fraction}
 //   vault()                    the Dimensional Pocket Vault (nms_vault.h): shown; page (1..9); labels (the page
 //                              buttons); first, last (the page's slots); slots[slot] = {item, icon, name, bag (its
 //                              size, 0 not a bag), contents {item, qty, icon, slot, name}}; bags = {{slot, name, size,
@@ -261,66 +253,6 @@ int f_loot_window(void*, const NmscArgs* args, NmscOut*) {
     return 0;
 }
 
-// ---- the Autoplay Console and the cooldowns
-
-int f_autoplay(void*, const NmscArgs*, NmscOut* o) {
-    Nms* n = active();
-    if (!n) return 0;
-    const std::uint32_t classes = n->own_classes();
-    const auto now = static_cast<std::uint32_t>(now_ms());
-    Out out{o};
-    out.table();
-    if (n->autoplay_console) out.field_flag("console", *n->autoplay_console);
-    out.key("rows");
-    out.array();
-    for (std::size_t i = 0; i < kAutoSkills.size(); ++i) {
-        const auto& s = kAutoSkills[i];
-        if (!(classes & s.class_mask)) continue;
-        const float left = n->cooldowns.remaining(i, now);
-        out.table();
-        out.field_text("name", s.name);
-        out.field_flag("enabled", (n->cooldowns.autoskill_mask() & (1u << s.bit)) != 0);
-        out.field_number("left", left);
-        out.field_number("fraction", left > 0.0f ? left / n->cooldowns.longest(i) : 0.0f);
-        out.end();
-    }
-    out.end();
-    out.end();
-    return 1;
-}
-
-int f_autoplay_console(void*, const NmscArgs* args, NmscOut*) {
-    if (Nms* n = active()) n->autoplay_console = arg_bool(args, 0);
-    return 0;
-}
-
-int f_autoskill(void*, const NmscArgs* args, NmscOut*) {
-    if (!active()) return 0;
-    command_line("/say #autoskill " + arg_string(args, 0) + (arg_bool(args, 1) ? " enable" : " disable"));
-    return 0;
-}
-
-int f_cooldowns(void*, const NmscArgs*, NmscOut* o) {
-    Nms* n = active();
-    if (!n) return 0;
-    const std::uint32_t classes = n->own_classes();
-    const auto now = static_cast<std::uint32_t>(now_ms());
-    Out out{o};
-    out.array();
-    for (std::size_t i = 0; i < kAutoSkills.size(); ++i) {
-        const auto& s = kAutoSkills[i];
-        if (!(n->cooldowns.autoskill_mask() & (1u << s.bit)) || !(classes & s.class_mask)) continue;
-        const float left = n->cooldowns.remaining(i, now);
-        out.array();
-        out.text(s.name);
-        out.number(left);
-        out.number(left > 0.0f ? left / n->cooldowns.longest(i) : 0.0f);
-        out.end();
-    }
-    out.end();
-    return 1;
-}
-
 // ---- the vault
 
 void bag_items(Out& out, const std::vector<VaultBagItem>& items) {
@@ -547,10 +479,6 @@ void register_ui_functions() {
                       {"loot_send", f_loot_send},
                       {"loot_rule", f_loot_rule},
                       {"loot_window", f_loot_window},
-                      {"autoplay", f_autoplay},
-                      {"autoplay_console", f_autoplay_console},
-                      {"autoskill", f_autoskill},
-                      {"cooldowns", f_cooldowns},
                       {"vault", f_vault},
                       {"vault_say", f_vault_say},
                       {"vault_window", f_vault_window},

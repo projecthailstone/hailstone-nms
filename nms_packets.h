@@ -35,7 +35,7 @@ inline constexpr std::uint16_t ServerAuthStats = 0x1338, SkillTimers = 0x1339, M
 inline constexpr std::uint16_t ClientReport = 0x140f;
 // Stock RoF2.
 inline constexpr std::uint16_t World_Client_CRC1 = 0x0f13, World_Client_CRC2 = 0x4b8d, ZoneServerInfo = 0x4c44,
-                               DisciplineTimer = 0x6989, Weblink = 0x6f4b, Taunt = 0x2703;
+                               DisciplineTimer = 0x6989, Weblink = 0x6f4b;
 } // namespace op
 
 // ---- 0x140f, both directions ----

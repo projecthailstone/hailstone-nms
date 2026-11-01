@@ -78,12 +78,13 @@ plugin passes it to the core whenever it comes.
   `/browser on`.
 - **Commands**: `/loot` (and `/nmsloot`), `/autoskill`, `/waypoint`, `/pets`, `/petcycle`, `/petdebug`, and
   `/alt toggle <id>` (the server's `#alttoggle`). Not the patch's `/fov` and `/camera` (the camera's zoom limit): the
-  client's own options set the field of view and the zoom limit.
+  client's own options set the field of view and the zoom limit. `/autoskill <args>` goes to the server's
+  `#autoskill`; `/autoskill` alone opens the client's Ability Book, where the patch toggled its Multiclass Autoplay
+  Console. The console and its Autoplay Cooldowns window are left out on purpose: the Ability Book has autoskill.
 
 ## Its windows
 
-`ui/modern/` and `ui/gamepad/` hold the Personal Loot window, the Multiclass Autoplay Console and its cooldown
-window, the Dimensional Pocket Vault and the waypoint window ("Attune the Map") for each pack, and a Pet window. They use the pack's
+`ui/modern/` and `ui/gamepad/` hold the Personal Loot window, the Dimensional Pocket Vault and the waypoint window ("Attune the Map") for each pack, and a Pet window. They use the pack's
 own libraries (a plugin window's `dofile("lib/hud.lua")` finds the pack's), so they look like the rest of the pack. A
 pack without them shows none of these windows.
 
@@ -107,13 +108,11 @@ the pack's window (`lib/pet.lua`) with the server's `#petcmd` added (its `zone/g
 
 The server's `#petcmd` takes a class only as the pet's summoning class, so two pets of one class always take the same
 command. The EQ menu's Plugins submenu and the gamepad pack's More page have
-Personal Loot and Autoplay Console.
+Personal Loot.
 
 The windows reach the plugin through `eq.Plugin("nms")` (`plugins/nms/nms_ui.cpp` lists each function and what it
-gives): `loot`, `loot_send`, `loot_rule`, `loot_window`, `autoplay`, `autoplay_console`, `autoskill`, `cooldowns`,
-`vault`, `vault_say`, `vault_window`, `waypoints`, `waypoint_request`, `pets`, `pet_command`, `pet_swarm_query`. Each gives nil before the plugin has seen an
-NMS server and outside the game. The windows keep their own settings in the pack's settings (`nms.ShowConsole`,
-`nms.ShowCooldowns`, `nms.loot.*`).
+gives): `loot`, `loot_send`, `loot_rule`, `loot_window`, `vault`, `vault_say`, `vault_window`, `waypoints`, `waypoint_request`, `pets`, `pet_command`, `pet_swarm_query`. Each gives nil before the plugin has seen an
+NMS server and outside the game. The windows keep their own settings in the pack's settings (`nms.loot.*`).
 
 ## Its files
 

@@ -91,15 +91,11 @@ public:
     Options options;
     PersonalLoot loot;
     Vault vault;
-    Cooldowns cooldowns;
     PetCommands pet_commands; // the Pet window's #petcmd lines (nms_petcmd.h)
     SkillTimers skill_timers;
     std::optional<WaypointList> waypoints;
     std::uint32_t waypoint_serial = 0; // each list shows the window again (FUN_101954a0), and /waypoint
     std::uint32_t loot_reset_serial = 0; // /loot reset: the window goes back to its default place and size
-    // The "Multiclass Autoplay Console" (FUN_1000a430): shown or not (unset until the UI gives its saved state);
-    // /autoskill with no argument toggles it.
-    std::optional<bool> autoplay_console;
     std::map<std::uint32_t, std::int64_t> stats; // OP_ServerAuthStats keys 1..0x83, as they came, never cleared
 
 private:
