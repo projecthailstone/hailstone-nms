@@ -377,7 +377,7 @@ TEST_CASE("NMS plugin windows: Personal Loot, the vault and the waypoints in the
         Host h;
         net::GameConnection& c = h.c();
         const fs::path dir = h.world.dir;
-        const fs::path src = fs::path(__FILE__).parent_path().parent_path() / "ui" / pack;
+        const fs::path src = fs::path(NMSC_CLIENT_UI_DIR) / pack; // the client's own packs
         REQUIRE(fs::exists(src));
         fs::copy(src, dir / pack, fs::copy_options::recursive);
         platform::set_data_dir_for_tests(dir); // (the notes window writes notes.txt there)
@@ -594,7 +594,7 @@ TEST_CASE("NMS plugin windows: the Pet window covers the pack's on an NMS server
         Host h;
         net::GameConnection& c = h.c();
         const fs::path dir = h.world.dir;
-        const fs::path src = fs::path(__FILE__).parent_path().parent_path() / "ui" / pk.pack;
+        const fs::path src = fs::path(NMSC_CLIENT_UI_DIR) / pk.pack; // the client's own packs
         fs::copy(src, dir / pk.pack, fs::copy_options::recursive);
         platform::set_data_dir_for_tests(dir);
         REQUIRE(h.plugins->load("nms"));

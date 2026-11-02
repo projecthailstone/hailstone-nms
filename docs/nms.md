@@ -1,6 +1,6 @@
 # The NMS plugin
 
-`plugins/nms/` is the NMS server's client changes as a Hailstone plugin. It does what the NMS patch
+This repository is the NMS server's client changes as a Hailstone plugin. It does what the NMS patch
 (`NMS/dinput8.dll`, which the NMS server ships with the game) does to the stock RoF2 client. It is built only
 against the plugin SDK (`sdk/nmsc_plugin.h`, `sdk/nmsc_byte_io.h`), like any server's plugin, and the client has no
 NMS code of its own. It is also the test case for the plugin interface: if a server's client needs something a plugin
@@ -11,19 +11,21 @@ numbers the code cites) and from the NMS server's sources.
 
 ## Installing it
 
-The build makes it in `build/hailstone/plugins/nms/` (`nms.so`, `nms.dll` or `nms.dylib`, with `ui/`).
-`cmake --install build --component nms --prefix <dir>` gives the same folder under `<dir>/plugins/nms/`. CI uploads it
-as its own artifact, `hailstone-nms-<platform>`. The plugin is not part of the default install.
+It is a Hailstone add-on (the client's docs/addons.md), released on this repository by `tools/release.sh` (README).
+The client's own download does not include it. Built inside the client's tree it lands in
+`build/hailstone/plugins/nms/` (`nms.so`, `nms.dll` or `nms.dylib`, with `ui/`), and
+`cmake --install build --component nms --prefix <dir>` gives the same folder under `<dir>/plugins/nms/`.
 
-- **A player** copies `plugins/nms/` into the Hailstone folder's `plugins/`. On a server without a `hailstone.cfg`
-  (the NMS server today) a player's plugin may do everything, and `plugins.autoload = *` (the default) loads it at
-  the world login.
+- **A player** installs it from the Add-ons screen with this repository's link, or copies a package's folder into
+  the Hailstone folder's `plugins/nms/`. The add-on asks for the capabilities below and gets no more. On a server
+  without a `hailstone.cfg` (the NMS server today) a player's plugin may do everything, and `plugins.autoload = *`
+  (the default) loads it at the world login.
 - **A server** with Hailstone's script ships it in its `client_files/`: the binary for each platform in
   `plugins/<platform>/nms/` (`linux-x64`, `windows-x64`, `macos-arm64` ...) and the windows in `plugins/nms/ui/`.
   They land in `servers/<profile>/plugins/nms/`, and the server's copy wins over a player's.
 
 It loads on any server and does nothing until it sees an NMS server. Project Triune runs a newer build of the same
-patch and sends the same packets; it has its own plugin (`plugins/projecttriune`, kept in a private repository), and this one stands down on
+patch and sends the same packets; it has its own plugin (`projecttriune`, kept in a private repository), and this one stands down on
 a server whose saved name or world name contains a word of `skip_servers` (default `triune`): it then touches no
 packet, so that plugin sees them.
 
@@ -39,6 +41,8 @@ below, or the matching part does not run (the chat window says which):
 | `extend` | the hooks, the rule switches, the class masks, the pet list and the server's vitals |
 | `events` | the chat filter (the vault's lines, "Your song ends." without Bard) |
 | `commands` | its commands |
+| `chat` | the server's `#` commands it says for the player: the vault's and the pet window's buttons, `/alt toggle` |
+| `move` | the scribe path's `/sit` |
 | `ui` | its windows, its option and its menu entries |
 | `actions`, `read` | the scribe path, the pet window's pet, the camera's zoom limit; reading the game state for the hooks |
 
