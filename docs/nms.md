@@ -44,7 +44,7 @@ below, or the matching part does not run (the chat window says which):
 | `chat` | the server's `#` commands it says for the player: the vault's and the pet window's buttons, `/alt toggle` |
 | `move` | the scribe path's `/sit` |
 | `ui` | its windows, its option and its menu entries |
-| `actions`, `read` | the scribe path, the pet window's pet, the camera's zoom limit; reading the game state for the hooks |
+| `actions`, `read` | the scribe path, the pet window's pet, the camera's zoom limit, the vault's Bank button (the bank window with the player as its banker, as the patch's CBankWnd::Activate; a client with the SDK's `open_bank`); reading the game state for the hooks |
 
 ## How it knows the server
 

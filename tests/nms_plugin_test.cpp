@@ -456,6 +456,17 @@ TEST_CASE("NMS plugin windows: Personal Loot, the vault and the waypoints in the
             c.ui_message("VAULTDATA|OPEN|9");
             frames(2);
             CHECK_FALSE(has_window("UI errors"));
+            // Merchant only says; Bank says, then opens the bank window with the player as its banker (FUN_1019a420)
+            h.ran.clear();
+            h.call("vault_say", {plugin::UiValue::string("#vault_merchant")});
+            CHECK_FALSE(c.bank());
+            h.call("vault_say", {plugin::UiValue::string("#vault_bank")});
+            CHECK(contains(h.ran, "/say #vault_bank"));
+            REQUIRE(c.bank());
+            CHECK(c.bank()->banker_id == c.world().player_id);
+            frames(2);
+            CHECK_FALSE(has_window("UI errors"));
+            c.close_bank();
             // Each tab draws.
             for (const char* tab : {"rules", "history", "settings", "loot"}) {
                 CHECK(h.command(std::string("/nmsloot tab ") + tab));

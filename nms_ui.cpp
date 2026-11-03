@@ -16,7 +16,8 @@
 //                              buttons); first, last (the page's slots); slots[slot] = {item, icon, name, bag (its
 //                              size, 0 not a bag), contents {item, qty, icon, slot, name}}; bags = {{slot, name, size,
 //                              contents}} (the open bag windows); cursor = {name, icon} (the item on the cursor) or nil
-//   vault_say(command)         a vault button's "/say #vault_..." (HideDoCommand); other text is refused
+//   vault_say(command)         a vault button's "/say #vault_..." (HideDoCommand); other text is refused;
+//                              "#vault_bank" then opens the bank window with the player as its banker
 //   vault_window(op [, slot])  "hide" (the close box), "bag" (a right click on a bag slot: its window opens or
 //                              closes), "closeBag", "inspect" (a right click on an item: its display, with its
 //                              augments), "inspectItem" (an item id: a bag's item)
@@ -326,7 +327,11 @@ int f_vault(void*, const NmscArgs*, NmscOut* o) {
 int f_vault_say(void*, const NmscArgs* args, NmscOut*) {
     if (!active()) return 0;
     const std::string cmd = arg_string(args, 0);
-    if (cmd.rfind("#vault_", 0) == 0) command_line("/say " + cmd);
+    if (cmd.rfind("#vault_", 0) != 0) return 0;
+    command_line("/say " + cmd);
+    // FUN_1019a420's Bank button: after the say, CBankWnd::Activate(pinstCBankWnd, pLocalPlayer), the bank window
+    // with the player as its banker (the server answers the bank moves). A client before open_bank cannot.
+    if (cmd == "#vault_bank" && NMSC_HOST_HAS(nmsc, open_bank)) nmsc->open_bank(nmsc->host, 0);
     return 0;
 }
 
