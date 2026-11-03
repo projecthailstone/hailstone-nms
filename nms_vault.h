@@ -16,7 +16,7 @@
 // A bag's contents (f6): "~"-separated items "item:qty:icon:bag slot:name" (the bag slot 0-based; FUN_1019bed0).
 //
 // Commands (said, as HideDoCommand "/say ..."): #vault_page N (a page button), #vault_deposit S (a click with an item
-// on the cursor), #vault_withdraw S [1] (a click; with Ctrl the trailing 1), #vault_bank, #vault_merchant, and in a
+// on the cursor), #vault_withdraw S [1] (a click; with Ctrl the trailing 1), #vault_bank (then the bank window opens with the player as its banker, CBankWnd::Activate), #vault_merchant, and in a
 // bag's window #vault_deposit_bagitem_specific S I / #vault_withdraw_bagitem S I [1].
 
 #include <array>
