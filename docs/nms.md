@@ -6,8 +6,8 @@ against the plugin SDK (`sdk/hailstone_plugin.h`, `sdk/hailstone_byte_io.h`), li
 NMS code of its own. It is also the test case for the plugin interface: if a server's client needs something a plugin
 cannot do, the interface is missing it (docs/research/plugin-v2-inventory.md).
 
-The patch's behaviour comes from rof2decomp's static analysis of the DLL (`notes/nms-dinput8.md`, whose section
-numbers the code cites) and from the NMS server's sources.
+The patch's behaviour comes from a static analysis of the DLL (the code cites its functions by address) and from the
+NMS server's sources.
 
 ## Installing it
 

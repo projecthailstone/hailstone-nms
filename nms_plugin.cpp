@@ -1,5 +1,5 @@
-// The NMS plugin's packets, hooks, commands and per-frame work (NMS/dinput8.dll; rof2decomp notes/nms-dinput8.md,
-// nms_rules.h): the patch's incoming opcodes, its outgoing OP_CAuth and 0x140f report, the class mask and the hooked
+// The NMS plugin's packets, hooks, commands and per-frame work (NMS/dinput8.dll; nms_rules.h):
+// the patch's incoming opcodes, its outgoing OP_CAuth and 0x140f report, the class mask and the hooked
 // GetSpellLevelNeeded, the scribe path and its per-frame Heartbeat. Nothing here runs before the plugin has seen an
 // NMS server (Nms::detected) but the OP_PetList pet list, which the core used to keep on any server.
 
@@ -249,8 +249,8 @@ void Nms::server_stats(const std::vector<std::pair<std::uint32_t, std::int64_t>>
         player_mask_ = static_cast<std::uint32_t>(it->second);
         host->set_player_classes(host->host, player_mask_);
     }
-    // FUN_10153300 writes keys 2/5/3/6/4/7 into the profile's current / max HP, mana and endurance, and the Max /
-    // Cur detours answer them (§2c): the host's set_vitals does both.
+    // 0x10153300 writes keys 2/5/3/6/4/7 into the profile's current / max HP, mana and endurance, and the Max /
+    // Cur detours answer them: the host's set_vitals does both.
     const Vitals sv = server_vitals(stats);
     HailstoneVitals n{};
     auto put = [&n](const std::optional<std::int32_t>& f, std::uint32_t bit, std::int32_t& out) {
@@ -350,8 +350,8 @@ bool Nms::zone_packet(HailstonePacket& p, std::int64_t now) {
     case op::SkillTimers:
         // {backstab, bash, kick, strike, frenzy, autoskill mask}, which the patch kept for its Autoplay Console's
         // cooldown table (0x1035d634). This plugin has no console (the client's Ability Book has autoskill), so the
-        // values are only kept. The same handler also runs FUN_100eca90 on this buffer (byte 0: 0 merchant / 1 bank
-        // for the spawn id at +1); why is open (notes/nms-dinput8.md §5) and EQEmu's buffer starts with the backstab
+        // values are only kept. The same handler also runs 0x100eca90 on this buffer (byte 0: 0 merchant / 1 bank
+        // for the spawn id at +1); why is open and EQEmu's buffer starts with the backstab
         // timer, so the client does not open windows from it.
         if (auto t = decode_skill_timers(data)) skill_timers = *t;
         return true;
@@ -386,7 +386,7 @@ bool Nms::zone_packet(HailstonePacket& p, std::int64_t now) {
 // ---------------------------------------------------------------- the zone-in and the Heartbeat
 
 void Nms::send_cauth() {
-    // FUN_100ed9f0: once per zone, after the class mask and the spawn id are known (EnterZone re-arms it).
+    // 0x100ed9f0: once per zone, after the class mask and the spawn id are known (EnterZone re-arms it).
     const HailstonePlayer me = player();
     send(encode_cauth(own_classes(), me.spawn_id, options.auth_key));
 }
@@ -401,7 +401,7 @@ void Nms::zoned() {
     auth_ms_ = now_ms();
 }
 
-// The patch's per-frame Heartbeat (FUN_1016b670, §3.3), the parts with client state: the cast spoof, the global
+// The patch's per-frame Heartbeat (0x1016b670), the parts with client state: the cast spoof, the global
 // recovery removal, the OP_CAuth / 0x140f sends and the "non multiclass server" warning.
 void Nms::pulse() {
     if (!detected_) return;
@@ -433,7 +433,7 @@ void Nms::pulse() {
     }
     // SpellCooldownETA (+0x3cc) zeroed whenever no cast is running: no global spell recovery.
     if (!me.casting_spell_id) host->clear_spell_recovery(host->host);
-    // The scribe path (§3.4, MQ2Pulse): the book opened for a scroll sits the player down on the next frame,
+    // The scribe path (MQ2Pulse): the book opened for a scroll sits the player down on the next frame,
     // standing up again closes it, and the click is replayed once its 100 ms are up.
     if (show_book_pending_) {
         show_book_pending_ = false;
@@ -466,12 +466,12 @@ void Nms::pulse() {
 }
 
 bool Nms::filter_chat(const std::string& text) {
-    // The patch's dsp_chat detour (FUN_10119d80): "Your song ends." for a mask without Bard, the vault's lines and the
+    // The patch's dsp_chat detour (0x10119d80): "Your song ends." for a mask without Bard, the vault's lines and the
     // echoes of the vault's commands and of #autoskill ("You say, '#autoskill ...", nms_rules.h hide_patch_line).
     if (!detected_) return false;
     if (pet_commands.on_chat(text)) return true; // the Pet window's own lines (nms_petcmd.h)
     if (text == "Your song ends." && hide_song_ends(class_mask())) return true;
-    vault.on_chat(text); // the vault's VAULTDATA lines (FUN_10199a20), hidden below
+    vault.on_chat(text); // the vault's VAULTDATA lines (0x10199a20), hidden below
     return hide_patch_line(text);
 }
 
@@ -510,7 +510,7 @@ std::int32_t Nms::combat_ability_timer(std::uint32_t spell_id) const {
 }
 
 std::optional<bool> Nms::before_combat_ability(std::uint32_t spell_id) {
-    // The doCombatAbility detour (FUN_10109820) for a timer id >= 20: refused while its map timer runs.
+    // The doCombatAbility detour (0x10109820) for a timer id >= 20: refused while its map timer runs.
     combat_now_ = static_cast<std::uint32_t>(std::time(nullptr));
     const std::int32_t timer = combat_ability_timer(spell_id);
     if (!DisciplineTimers::handles(timer) || disc_timers_.ready(timer, combat_now_)) return std::nullopt;
@@ -528,7 +528,7 @@ void Nms::after_combat_ability(std::uint32_t spell_id, bool used) {
 }
 
 std::string Nms::combat_effect_label() const {
-    // The CCombatAbilityWnd OnProcessFrame vtable hook (§3.3): the label names the first buff whose spell has a
+    // The CCombatAbilityWnd OnProcessFrame vtable hook: the label names the first buff whose spell has a
     // timer id >= 20, else "No Effect".
     const HailstonePlayer me = player();
     for (std::uint32_t i = 0; i < me.buff_slots; ++i) {
@@ -556,7 +556,7 @@ bool Nms::hide_xtarget_slot(int slot) const {
 
 // ---------------------------------------------------------------- the scribe path
 
-// The patch's CInvSlot::HandleRButtonUp detour (§3.4): a right click on a scroll or tome scribes it, opening the
+// The patch's CInvSlot::HandleRButtonUp detour: a right click on a scroll or tome scribes it, opening the
 // spell book and sitting first unless it is a tome or the book is open (the Heartbeat replays the click 100 ms
 // later). The class / level 100 spoof around the original reaches its casting check only.
 bool Nms::item_right_click(const HailstoneItemSlot& slot) {
@@ -581,7 +581,7 @@ void Nms::run_scribe(const HailstoneItemSlot& slot, std::uint8_t target_class) {
     // NMS_BeginScribeSpoof: class = the target class (when there is one) and level 100 on the spawn and profile,
     // g_scribeInProgress; then the original HandleRButtonUp, then everything back. Of the spoof only the class
     // reaches the original (its casting check's BardCastBard); the item type 31 the tome path also writes is not read
-    // there (rof2decomp export CInvSlot.c and the disassembly @0x697250).
+    // there (CInvSlot::HandleRButtonUp @0x697250).
     scribe_in_progress_ = true;
     host->right_click_item(host->host, &slot, target_class);
     scribe_in_progress_ = false;
@@ -591,7 +591,7 @@ void Nms::run_scribe(const HailstoneItemSlot& slot, std::uint8_t target_class) {
 
 void Nms::command(const std::string& word, const std::string& args) {
     if (word == "/nmsloot") loot_command(args); // the shipped patch's name for its loot window's command
-    else if (word == "/autoskill") autoskill_command(args); // the patch's (FUN_1016c310), without its console
+    else if (word == "/autoskill") autoskill_command(args); // the patch's (0x1016c310), without its console
     else if (word == "/waypoint" || word == "/waypoints") waypoint_command(args);
     else if (word == "/pets") pets_command(); // MultiPet's commands (multi_pet.cpp)
     else if (word == "/petcycle") petcycle_command();
@@ -682,7 +682,7 @@ void Nms::waypoint_command(const std::string& args) {
 }
 
 void Nms::autoskill_command(const std::string& args) {
-    // FUN_1016c310: anything after the word goes to the server's #autoskill. With no argument the patch toggled its
+    // 0x1016c310: anything after the word goes to the server's #autoskill. With no argument the patch toggled its
     // Multiclass Autoplay Console; this plugin has none (a deliberate difference: the client's own Ability Book has
     // autoskill), so it opens the Ability Book instead.
     std::size_t i = 0;
@@ -744,7 +744,7 @@ void Nms::petdebug_command() const {
 }
 
 std::vector<std::string> Nms::who_lines(const HailstoneWho& who) const {
-    // The NMS patch replaces the whole reply with its own lines (FUN_10198eb0, nms_rules.h).
+    // The NMS patch replaces the whole reply with its own lines (0x10198eb0, nms_rules.h).
     std::vector<WhoEntry> entries;
     for (std::uint32_t i = 0; i < who.count; ++i) {
         const HailstoneWhoEntry* e = HAILSTONE_WHO_ENTRY(&who, i);
@@ -799,13 +799,13 @@ int h_can_use_gem(int gem, int* out) {
     return 1;
 }
 int h_ability_timer_id(std::uint32_t spell_id, std::int32_t* out) {
-    // The patch's discipline timers (§2a): the band table moves CARecastTimerID.
+    // The patch's discipline timers: the band table moves CARecastTimerID.
     auto band = discipline_band(spell_id);
     if (!band) return 0;
     *out = *band;
     return 1;
 }
-// The GetDisciplineReuseTimer detour (FUN_10109780): ids >= 20 from its map, 0 (ready) when absent.
+// The GetDisciplineReuseTimer detour (0x10109780): ids >= 20 from its map, 0 (ready) when absent.
 int h_discipline_reuse(std::int32_t timer_id, std::uint32_t* out) {
     auto v = g_nms.discipline_reuse(timer_id);
     if (!v) return 0;
@@ -829,7 +829,7 @@ std::uint32_t h_vitals_classes(std::uint8_t class_id) {
     if (!mask || mask == class_bit(class_id)) return 0;
     return mask & 0xffffu;
 }
-// The HasSkill / IsAvailable detours (§3.8) and the tracking window's rule.
+// The HasSkill / IsAvailable detours and the tracking window's rule.
 int h_skill_gate(std::int32_t skill, std::uint32_t mask, std::int32_t profile_skill, int* has) {
     auto v = skill_gate(skill, mask, profile_skill);
     if (!v) return 0;

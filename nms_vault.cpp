@@ -1,4 +1,4 @@
-// The shipped NMS patch's Dimensional Pocket Vault: its VAULTDATA parser (FUN_10199a20, FUN_1019bed0). See
+// The shipped NMS patch's Dimensional Pocket Vault: its VAULTDATA parser (0x10199a20, 0x1019bed0). See
 // nms_vault.h.
 
 #include "nms_vault.h"
@@ -77,7 +77,7 @@ void Vault::refresh_bag(const VaultSlot& s) {
 }
 
 void Vault::toggle_bag(const VaultSlot& s) {
-    // The right click on a bag slot (FUN_1019a420): a closed or missing window opens with the slot's name, number,
+    // The right click on a bag slot (0x1019a420): a closed or missing window opens with the slot's name, number,
     // size and contents; an open one closes.
     auto it = bags_.find(s.slot);
     if (it == bags_.end() || !it->second.open) {

@@ -1,6 +1,6 @@
 // The NMS plugin's rules (plugins/nms/nms_rules.h), packets (nms_packets.h), windows' state (nms_loot.h,
 // nms_vault.h, nms_waypoints.h) and settings (nms_options.h), built into the tests from the plugin's own sources,
-// against rof2decomp's static analysis of NMS/dinput8.dll (notes/nms-dinput8.md) and the NMS server's structs. The
+// against a static analysis of NMS/dinput8.dll and the NMS server's structs. The
 // plugin itself, loaded into a client: nms_plugin_test.cpp.
 
 #include <doctest/doctest.h>
@@ -54,7 +54,7 @@ std::uint64_t u64_at(const std::vector<std::byte>& b, std::size_t at) {
 
 } // namespace
 
-TEST_CASE("NMS GetSpellLevelNeeded detour (notes §3.2)") {
+TEST_CASE("NMS GetSpellLevelNeeded detour") {
     auto orig = of(minor_healing());
     const std::uint32_t clr = bit(2), war_wiz = bit(1) | bit(12), clr_pal = bit(2) | bit(3);
     // Mask 0 or no player: the original.
@@ -74,7 +74,7 @@ TEST_CASE("NMS GetSpellLevelNeeded detour (notes §3.2)") {
     CHECK(nms::mask_min_level(orig, 0) == 255);
 }
 
-TEST_CASE("NMS class rules (notes §3.1, §3.3, §3.8)") {
+TEST_CASE("NMS class rules") {
     CHECK(nms::is_spellcaster(bit(2)));
     CHECK(nms::is_spellcaster(bit(8)));
     CHECK_FALSE(nms::is_spellcaster(bit(1) | bit(7) | bit(9) | bit(16)));
@@ -111,7 +111,7 @@ TEST_CASE("NMS class rules (notes §3.1, §3.3, §3.8)") {
     CHECK(nms::skill_gate(30, bit(1), -1) == false);
 }
 
-TEST_CASE("NMS displays (notes §3.6, §3.7, §3.10)") {
+TEST_CASE("NMS displays") {
     CHECK(nms::hide_song_ends(bit(2)));
     CHECK_FALSE(nms::hide_song_ends(bit(2) | bit(8)));
     CHECK_FALSE(nms::hide_song_ends(0));
@@ -131,7 +131,7 @@ TEST_CASE("NMS displays (notes §3.6, §3.7, §3.10)") {
     CHECK_FALSE(nms::list_level(of(none), bit(1)).has_value());
 }
 
-TEST_CASE("NMS /who reformat (FUN_10198eb0)") {
+TEST_CASE("NMS /who reformat (0x10198eb0)") {
     auto zone = [](std::uint32_t id) { return id == 1 ? std::string("qeynos") : std::string(); };
     nms::WhoEntry a;
     a.format = 5022;
@@ -172,7 +172,7 @@ TEST_CASE("NMS discipline timers >= 20") {
     CHECK_FALSE(t.ready(25, 1099));
 }
 
-TEST_CASE("NMS packets (notes §4.2)") {
+TEST_CASE("NMS packets") {
     // 0x140f: 34 bytes on the wire = 32 of payload.
     auto rep = nms::encode_client_report(nms::kReportLargeAddress);
     CHECK(rep.opcode == 0x140f);
@@ -318,7 +318,7 @@ TEST_CASE("NMS waypoint window: continents and expansions") {
     CHECK(nms::waypoint_expansion({6, 998, true, "Another Plane"}) == -1);
 }
 
-TEST_CASE("NMS vitals detours: Max / Cur HP, mana and endurance (notes §2c, EQCharacter1Hook)") {
+TEST_CASE("NMS vitals detours: Max / Cur HP, mana and endurance (EQCharacter1Hook)") {
     // Keys 2..7 when present, whatever else is in the map; the int64 against 0x7ffffffe, signed.
     std::map<std::uint32_t, std::int64_t> stats{{1, 0x82}, {2, 2775}, {5, 3100}, {6, 0}, {7, 0x1'0000'0000LL}};
     nms::Vitals v = nms::server_vitals(stats);
@@ -524,7 +524,7 @@ TEST_CASE("NMS /loot (LootCommand)") {
     CHECK(r.reset_window);
 }
 
-TEST_CASE("NMS dsp_chat drops (FUN_10119d80)") {
+TEST_CASE("NMS dsp_chat drops (0x10119d80)") {
     CHECK(nms::hide_patch_line("VAULTDATA|ADD|1|2|3"));
     CHECK(nms::hide_patch_line("--- DIMENSIONAL POCKET VAULT ---"));
     CHECK(nms::hide_patch_line("Slot 3: <Empty>"));
@@ -534,7 +534,7 @@ TEST_CASE("NMS dsp_chat drops (FUN_10119d80)") {
     CHECK_FALSE(nms::hide_patch_line("Auto-skill Kick (30) enabled."));
 }
 
-TEST_CASE("NMS vault: the VAULTDATA lines (FUN_10199a20, FUN_1019bed0)") {
+TEST_CASE("NMS vault: the VAULTDATA lines (0x10199a20, 0x1019bed0)") {
     nms::Vault v;
     CHECK_FALSE(v.on_chat("You say, 'hello'"));
     CHECK(v.on_chat("VAULTDATA|ADD|1|3|1001|1|794|Spider Silk"));
@@ -655,7 +655,7 @@ TEST_CASE("NMS OP_PetList is u32 count, {u32 spawn id, u32 class}") {
     CHECK(e->empty());
 }
 
-TEST_CASE("NMS scribe click rules (notes §3.4)") {
+TEST_CASE("NMS scribe click rules") {
     CHECK(nms::scribe_click(20));
     CHECK(nms::scribe_click(31));
     CHECK_FALSE(nms::scribe_click(21));

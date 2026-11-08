@@ -1,10 +1,10 @@
 #pragma once
 
-// The shipped NMS patch's "Dimensional Pocket Vault" (NMS/dinput8.dll; rof2decomp notes/nms-dinput8.md §4.3): a
+// The shipped NMS patch's "Dimensional Pocket Vault" (NMS/dinput8.dll): a
 // window over a server-side store of 83 slots, fed by chat lines the server sends and the patch's dsp_chat detour
-// reads and hides (FUN_10119d80 -> FUN_10199a20), and driven by "#vault_*" say commands. The NMS-Release server has
+// reads and hides (0x10119d80 -> 0x10199a20), and driven by "#vault_*" say commands. The NMS-Release server has
 // no vault (no #vault command, no VAULTDATA line), so only the client side is known; field meanings come from how
-// the window uses them (FUN_1019a420 the window, FUN_1019b500 the bag windows, FUN_1019bc60 the contents tooltip).
+// the window uses them (0x1019a420 the window, 0x1019b500 the bag windows, 0x1019bc60 the contents tooltip).
 //
 // The lines (anywhere in a chat line, from "VAULTDATA|"):
 //   VAULTDATA|CLEAR                     drops every slot
@@ -13,7 +13,7 @@
 //                                       f7..f12 the six augment ids; f13 (?, a flag); f14 the bag's size (> 0: a bag)
 //   VAULTDATA|NEST|f0|f1|text           more of slot (f0, f1)'s contents: f6 += "~" + text (no "~" when f6 is empty)
 //   VAULTDATA|OPEN|page                 shows the window at page (at least 1)
-// A bag's contents (f6): "~"-separated items "item:qty:icon:bag slot:name" (the bag slot 0-based; FUN_1019bed0).
+// A bag's contents (f6): "~"-separated items "item:qty:icon:bag slot:name" (the bag slot 0-based; 0x1019bed0).
 //
 // Commands (said, as HideDoCommand "/say ..."): #vault_page N (a page button), #vault_deposit S (a click with an item
 // on the cursor), #vault_withdraw S [1] (a click; with Ctrl the trailing 1), #vault_bank (then the bank window opens with the player as its banker, CBankWnd::Activate), #vault_merchant, and in a

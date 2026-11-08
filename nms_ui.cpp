@@ -329,7 +329,7 @@ int f_vault_say(void*, const HailstoneArgs* args, HailstoneOut*) {
     const std::string cmd = arg_string(args, 0);
     if (cmd.rfind("#vault_", 0) != 0) return 0;
     command_line("/say " + cmd);
-    // FUN_1019a420's Bank button: after the say, CBankWnd::Activate(pinstCBankWnd, pLocalPlayer), the bank window
+    // 0x1019a420's Bank button: after the say, CBankWnd::Activate(pinstCBankWnd, pLocalPlayer), the bank window
     // with the player as its banker (the server answers the bank moves). A client before open_bank cannot.
     if (cmd == "#vault_bank" && HAILSTONE_HOST_HAS(host, open_bank)) host->open_bank(host->host, 0);
     return 0;
@@ -348,7 +348,7 @@ int f_vault_window(void*, const HailstoneArgs* args, HailstoneOut*) {
     } else if (op == "closeBag") {
         v.close_bag(slot);
     } else if (op == "inspect") {
-        // FUN_1019c1b0: OP_ItemLinkClick {item, the six augments, flag 4}.
+        // 0x1019c1b0: OP_ItemLinkClick {item, the six augments, flag 4}.
         if (const VaultSlot* s = v.at(slot); s && s->item_id) {
             std::uint32_t augs[6];
             for (std::size_t k = 0; k < 6; ++k) augs[k] = static_cast<std::uint32_t>(s->augments[k]);

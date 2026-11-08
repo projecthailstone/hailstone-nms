@@ -1,8 +1,8 @@
 #pragma once
 
 // The NMS client patch (NMS/dinput8.dll, the MQ2-based "eqgame_dll" the NMS server ships with the game) as rules
-// on top of the stock client's. rof2decomp analysed it statically: notes/nms-dinput8.md (§ numbers below are that
-// note's). On an NMS server the patched client is "the original", so the NMS plugin (nms_plugin.h) applies these
+// on top of the stock client's. It was analysed statically; functions are cited by address.
+// On an NMS server the patched client is "the original", so the NMS plugin (nms_plugin.h) applies these
 // only once it has seen an NMS server (the world sent OP_SendCharacterSets, or the zone OP_ServerAuthStats or 0x140f)
 // and only where the patch does (most of them need a non-zero class mask, as the patch's do). Everything here is a
 // pure function of its arguments.
@@ -22,7 +22,7 @@
 namespace nms {
 
 inline constexpr std::uint32_t kBard = 8;
-// FUN_10109d80 / FUN_10167bc0 / FUN_1011c6c0 and the IsSpellcaster detours: classes 2,3,4,5,6,8 and 10..15.
+// 0x10109d80 / 0x10167bc0 / 0x1011c6c0 and the IsSpellcaster detours: classes 2,3,4,5,6,8 and 10..15.
 inline constexpr std::uint32_t kCasterMask = 0x7ebe;
 // CSkillMgr::IsAvailable / HasSkill: Tracking needs Ranger, Druid or Bard.
 inline constexpr std::uint32_t kTrackingMask = 0xa8;
@@ -37,7 +37,7 @@ using LevelOf = std::function<std::uint8_t(std::uint32_t class_id)>;
 // The lowest orig(c) over the mask's classes 1..16; 255 when the mask has none.
 std::uint8_t mask_min_level(const LevelOf& orig, std::uint32_t mask);
 
-// ---- EQ_Spell::GetSpellLevelNeeded @0x4af700, detour 0x10109030 (§3.2) ----
+// ---- EQ_Spell::GetSpellLevelNeeded @0x4af700, detour 0x10109030 ----
 // `arg` the class asked about, `visible` the spawn's class (8 for NMS characters), `mask` the class mask, `player`
 // whether a local player exists, `scribe` g_scribeInProgress or the cursor holding a type-20 scroll of this spell.
 //   not scribing: mask 0 / no player -> orig(arg); arg == visible or a mask class -> the mask minimum; else 255.
@@ -45,7 +45,7 @@ std::uint8_t mask_min_level(const LevelOf& orig, std::uint32_t mask);
 std::uint8_t spell_level_needed(const LevelOf& orig, std::uint32_t arg, std::uint32_t visible, std::uint32_t mask,
                                 bool player, bool scribe);
 
-// ---- class rules (§3.1) ----
+// ---- class rules ----
 // EQ_Character::IsSpellcaster / _2 / _3 for the local character with a mask: any of classes 2..6, 8, 10..15.
 inline bool is_spellcaster(std::uint32_t mask) { return (mask & kCasterMask) != 0; }
 // EQ_Character::GetUsableClasses for the merchant filter (bArg1 == 0) with a mask: 0xffff when the item has no
@@ -67,7 +67,7 @@ inline bool own_begin_cast_dropped(std::int32_t pc_spells_setting, bool grouped,
 // CharacterZoneClient::CanUseMemorizedSpellSlot detour: 12 gems from level 1.
 inline bool can_use_memorized_spell_slot(std::int32_t gem) { return gem < 12; }
 
-// ---- CInvSlot::HandleRButtonUp detour 0x1010a670 (§3.4): scribing from a right click ----
+// ---- CInvSlot::HandleRButtonUp detour 0x1010a670: scribing from a right click ----
 // Taken for item type 20 (scroll) or 31 (tome) while isToggleSpellBookOnScribeEnabled (1).
 inline bool scribe_click(std::uint8_t item_type) { return item_type == 20 || item_type == 31; }
 // The class the scribe spoof puts on the spawn and profile: the first class of the item's classes that is in the
@@ -79,11 +79,11 @@ bool scribe_is_tome(std::uint8_t item_type, const std::string& name);
 // The delayed path's wait between opening the book and the replayed click (SCRIBE_DURATION_MS).
 inline constexpr std::int64_t kScribeDelayMs = 100;
 
-// The Heartbeat's cast spoof (FUN_1016b670, §3.3): while a spell whose Bard level is 255 is being cast, the visible
+// The Heartbeat's cast spoof (0x1016b670): while a spell whose Bard level is 255 is being cast, the visible
 // class is the first mask class (low bit first) with a level 1..254 for it; 0 when none (no spoof).
 std::uint32_t cast_spoof_class(const LevelOf& orig, std::uint32_t mask);
 
-// ---- skills (§3.8) ----
+// ---- skills ----
 // The gate both detours run before spoofing: false for a skill the profile marks -1 (`profile_skill`), and for
 // Tracking without Ranger, Druid or Bard in a non-zero mask; nullopt = go on.
 std::optional<bool> skill_gate(std::int32_t skill, std::uint32_t mask, std::int32_t profile_skill);
@@ -92,31 +92,31 @@ std::optional<bool> skill_gate(std::int32_t skill, std::uint32_t mask, std::int3
 // Ranger, Druid or Bard in it (HasSkill's gate above); then the skill, as stock. A zero mask (any other server)
 // gives the stock rule.
 bool tracking_allowed(std::uint8_t class_id, std::uint32_t class_mask, std::uint32_t tracking_skill);
-// GetSpoofClassForSkill (FUN_10109350): the class the original then sees for `skill`, first match in the mask;
+// GetSpoofClassForSkill (0x10109350): the class the original then sees for `skill`, first match in the mask;
 // 0 = no spoof (the visible class stays).
 std::uint32_t skill_spoof_class(std::int32_t skill, std::uint32_t mask);
 
-// ---- displays (§3.6, §3.7, §3.10) ----
+// ---- displays ----
 // The upper-case codes (GetClassThreeLetterCode / the /who table): "WAR", "CLR", ...; "UNK" outside 1..16.
 std::string class_code(std::uint32_t class_id);
 // dsp_chat: "Your song ends." is dropped with a non-zero mask that has no Bard.
 inline bool hide_song_ends(std::uint32_t mask) { return mask != 0 && !has_class(mask, kBard); }
-// The rest of the dsp_chat detour's drops (FUN_10119d80): the vault's data lines ("VAULTDATA|", which the vault
+// The rest of the dsp_chat detour's drops (0x10119d80): the vault's data lines ("VAULTDATA|", which the vault
 // window reads) and its text replies ("--- DIMENSIONAL POCKET VAULT ---", "Pages: ", the deposit hint, "Slot " lines
 // with Withdraw / Deposit Cursor / <Empty>, the rule), the echoes of the patch's own commands ("You say, '" with
 // vault_page / vault_deposit / vault_withdraw / vault_bank / vault_merchant / #autoskill), and "launching the welcome
 // screen". (Its LootNScoot "[NMS] Not active looter" throttle and MQ2's /filter list are not ported.)
 bool hide_patch_line(std::string_view text);
-// The item display's "Level Needed: " line for a spell scroll (FUN_101507b0 / ScrubTooltipLevelNeeded):
+// The item display's "Level Needed: " line for a spell scroll (0x101507b0 / ScrubTooltipLevelNeeded):
 // "Level Needed: CLR(1) WIZ(4)", one per mask class with a level byte other than 0 and 255, "Level Needed: CANNOT
 // USE" when none; with mask 0 the visible class alone. A Hailstone difference: when none, every class that can use
 // the scroll follows ("Level Needed: CANNOT USE - CLR(1) PAL(9)"); the patch shows "CANNOT USE" alone.
 std::string level_needed_line(const LevelOf& orig, std::uint32_t mask, std::uint32_t visible);
-// The merchant (col 7) and bazaar (col 8) Lvl columns for a spell scroll (§3.6): the minimum over the mask's
+// The merchant (col 7) and bazaar (col 8) Lvl columns for a spell scroll: the minimum over the mask's
 // classes; else the minimum over all 16 classes when one can use it; nullopt = "--".
 std::optional<std::uint8_t> list_level(const LevelOf& orig, std::uint32_t mask);
 
-// The reformatted /who (FUN_10198eb0, who_multiclass.cpp): "[Name] - [Level CLASSES (Race)] ZONE: zone * GM *",
+// The reformatted /who (0x10198eb0, who_multiclass.cpp): "[Name] - [Level CLASSES (Race)] ZONE: zone * GM *",
 // "[Name] - [ANONYMOUS]..." for 5024, " <ROLEPLAY>" for 5023, then the player count line. `zone_name` gives a zone's
 // short name by id ("" unknown).
 struct WhoEntry {
@@ -128,7 +128,7 @@ struct WhoEntry {
 using ZoneNameFn = std::function<std::string(std::uint32_t zone_id)>;
 std::vector<std::string> format_who(const std::vector<WhoEntry>& entries, const ZoneNameFn& zone_name);
 
-// ---- the discipline timers >= 20 (§2a GetDisciplineReuseTimer / SetDisciplineReuseTimer / doCombatAbility) ----
+// ---- the discipline timers >= 20 (GetDisciplineReuseTimer / SetDisciplineReuseTimer / doCombatAbility) ----
 // The stock array holds timer ids 0..19; the patch keeps ids >= 20 in a map (0 = ready), ready times in seconds.
 class DisciplineTimers {
 public:
@@ -144,7 +144,7 @@ private:
     std::vector<std::pair<std::int32_t, std::uint32_t>> timers_;
 };
 
-// The vitals detours (§2c; EQCharacter1Hook in the source's MQ2Labels.cpp): Max_HP, Cur_HP, Max_Mana, Cur_Mana,
+// The vitals detours (EQCharacter1Hook in the source's MQ2Labels.cpp): Max_HP, Cur_HP, Max_Mana, Cur_Mana,
 // Max_Endurance and Cur_Endurance return OP_ServerAuthStats key 5 / 2 / 6 / 3 / 7 / 4 when the patch's stat map has
 // it, whatever the arguments and the EQ_Character; else the original. The 64-bit value as a signed compare: 0x7ffffffe
 // and above give 0x7ffffffe, anything else its low 32 bits (so a negative value wraps). No lower clamp, no 10000000
@@ -154,13 +154,13 @@ struct Vitals {
 };
 Vitals server_vitals(const std::map<std::uint32_t, std::int64_t>& stats);
 
-// NMSDiscTimers_ApplyBands (FUN_10107460): the CARecastTimerID the patch writes into a discipline (its table of 152
+// NMSDiscTimers_ApplyBands (0x10107460): the CARecastTimerID the patch writes into a discipline (its table of 152
 // at 0x10268a30, applied in game whenever spell 4514's is not 23); nullopt for the spells it leaves alone.
 std::optional<std::int32_t> discipline_band(std::uint32_t spell_id);
 // The doCombatAbility detour's refusal for a timer id >= 20 still running (WriteChatf at 0x10109820).
 std::string discipline_not_ready_line(std::string_view name, std::uint32_t seconds);
 
-// ---- OP_SkillTimers 0x1339 (§4.1) ----
+// ---- OP_SkillTimers 0x1339 ----
 // {u32 backstab, bash, kick, strike, frenzy, autoskill_bitmask}, the seconds left (EQEmu SkillTimers_Struct from
 // PTimerList::GetRemainingTime; the server sends 4 more bytes).
 struct SkillTimers {

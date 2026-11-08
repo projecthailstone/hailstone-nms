@@ -1,5 +1,5 @@
--- The shipped NMS patch's Dimensional Pocket Vault (NMS/dinput8.dll FUN_1019a420, its bag windows FUN_1019b500 and
--- its contents tooltip FUN_1019bc60; plugins/nms/nms_vault.h): Bank and Merchant buttons, the nine page buttons
+-- The shipped NMS patch's Dimensional Pocket Vault (NMS/dinput8.dll 0x1019a420, its bag windows 0x1019b500 and
+-- its contents tooltip 0x1019bc60; plugins/nms/nms_vault.h): Bank and Merchant buttons, the nine page buttons
 -- (the current one blue), the Clicky / Proc Locker note, and the page's slots as 40 x 40 cells (an empty one dark
 -- with its number, "Pri" / "Sec" / "Rng" on the Proc Locker). A left click deposits the cursor's item into the slot or
 -- withdraws the slot's item (with Ctrl: one of a stack); a right click inspects an item or opens a bag's own window.
@@ -15,7 +15,7 @@ local function icon(id, size)
   if tex then ui.Image(tex, size, size, u0, v0, u1, v1) else ui.Dummy(size, size) end
 end
 
--- FUN_1019bc60: a hovered bag's contents.
+-- 0x1019bc60: a hovered bag's contents.
 local function contentsTooltip(s)
   if #s.contents == 0 then return end
   ui.BeginTooltip()
@@ -123,7 +123,7 @@ function M.Body(v)
   else cursorHint(v) end
 end
 
--- FUN_1019b500: a bag's own window, 120 wide, two cells a row.
+-- 0x1019b500: a bag's own window, 120 wide, two cells a row.
 function M.Bag(v, b)
   ui.SetNextWindowSize(120, 0, ui.Cond.FirstUseEver)
   local visible, open = ui.Begin(b.name .. "##bag_" .. b.slot, true, ui.WindowFlags.AlwaysAutoResize)

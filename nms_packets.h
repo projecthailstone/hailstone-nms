@@ -1,6 +1,6 @@
 #pragma once
 
-// The NMS server's own packets (rof2decomp notes/nms-dinput8.md §4; the NMS server's common/eq_packet_structs.h).
+// The NMS server's own packets (NMS/dinput8.dll and the NMS server's common/eq_packet_structs.h).
 // The NMS opcodes are not in stock EQEmu's patch_RoF2.conf, so the plugin keeps them here by wire value. Decoders
 // take the bytes OnPacket hands the plugin; encoders give a Packet for send_packet (and, in the server direction,
 // for the tests).
@@ -39,7 +39,7 @@ inline constexpr std::uint16_t World_Client_CRC1 = 0x0f13, World_Client_CRC2 = 0
 } // namespace op
 
 // ---- 0x140f, both directions ----
-// Client -> zone (FUN_100eddc0, once after the class mask arrives): 34 bytes on the wire,
+// Client -> zone (0x100eddc0, once after the class mask arrives): 34 bytes on the wire,
 // {u16 0x140f; u32 0x5ab3e769; u32 flags; 24 zero bytes}. From the server (any payload) it says the server knows
 // the patch, which mutes the "non multiclass server" warning; the patch swallows it.
 inline constexpr std::uint32_t kReportMagic = 0x5ab3e769;
@@ -48,13 +48,13 @@ inline constexpr std::uint32_t kReportChannelT = 2;     // the DLL's channel let
 inline constexpr std::uint32_t kReportLargeAddress = 4; // the process has more than 2 GB of address space
 Packet encode_client_report(std::uint32_t flags);
 
-// ---- OP_CAuth 0x7777, client -> zone (FUN_100ed9f0) ----
+// ---- OP_CAuth 0x7777, client -> zone (0x100ed9f0) ----
 // 262 bytes on the wire: {u16 0x7777; u8 hash[8]; 248 zero bytes; u32 0}, hash = (u64)(mask * spawn id) with each
 // byte XORed with byte i % 4 of the server's Custom:ServerAuthKey. The server XORs all 256 bytes and compares the
 // first 8 (zone/client_packet.cpp Handle_OP_CAuth).
 Packet encode_cauth(std::uint32_t class_mask, std::uint32_t spawn_id, std::uint32_t key);
 
-// ---- the login CRC rewrite (UdpConnection::SendMessage detour, §4.2) ----
+// ---- the login CRC rewrite (UdpConnection::SendMessage detour) ----
 // The patch replaces the first 8 bytes of OP_World_Client_CRC1 (0x0f13) with the first network adapter's MAC and of
 // CRC2 (0x4b8d) with the C:\ volume serial and 0, or, when its VM probe says VM, with 999999999999 and 99999999.
 // This client never reads or sends real hardware identifiers: `Fixed` sends the patch's VM values, `None` leaves
@@ -67,7 +67,7 @@ std::optional<HardwareIdMode> parse_hardware_id_mode(const std::string& s);
 bool apply_hardware_id(std::uint16_t opcode, std::span<std::byte> data, HardwareIdMode mode);
 
 // ---- OP_ServerAuthStats 0x1338, zone -> client: {u32 count; count x {u32 key; u64 value}} ----
-// nullopt unless the size is exactly 4 + 12 x count (the label parser, FUN_10153300).
+// nullopt unless the size is exactly 4 + 12 x count (the label parser, 0x10153300).
 std::optional<std::vector<std::pair<std::uint32_t, std::int64_t>>> decode_server_auth_stats(Bytes p);
 Packet encode_server_auth_stats(const std::vector<std::pair<std::uint32_t, std::int64_t>>& v); // for tests
 

@@ -94,7 +94,7 @@ public:
     PetCommands pet_commands; // the Pet window's #petcmd lines (nms_petcmd.h)
     SkillTimers skill_timers;
     std::optional<WaypointList> waypoints;
-    std::uint32_t waypoint_serial = 0; // each list shows the window again (FUN_101954a0), and /waypoint
+    std::uint32_t waypoint_serial = 0; // each list shows the window again (0x101954a0), and /waypoint
     std::uint32_t loot_reset_serial = 0; // /loot reset: the window goes back to its default place and size
     std::map<std::uint32_t, std::int64_t> stats; // OP_ServerAuthStats keys 1..0x83, as they came, never cleared
 
@@ -126,7 +126,7 @@ private:
     bool warned_ = false;
     bool auth_sent_ = false;             // OP_CAuth sent this zone and not echoed yet
     std::int64_t auth_ms_ = 0;
-    // The scribe path's state (§3.4): g_pendingSpellBookShow, g_spellBookOpenedByScribe, the pending replay
+    // The scribe path's state: g_pendingSpellBookShow, g_spellBookOpenedByScribe, the pending replay
     // (g_pendingScribeThis as the slot, its target class, g_scribeEndTick) and g_scribeInProgress, which makes
     // GetSpellLevelNeeded answer as for a scroll on the cursor while the original runs.
     struct PendingScribe {

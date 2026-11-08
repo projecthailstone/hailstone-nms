@@ -1,5 +1,5 @@
 // The patch's discipline band table (dinput8.dll 0x10268a30, 152 {spell id, CARecastTimerID} pairs), written into
-// each spell's +0x198 by NMSDiscTimers_ApplyBands (FUN_10107460). Generated from NMS/dinput8.dll
+// each spell's +0x198 by NMSDiscTimers_ApplyBands (0x10107460). Generated from NMS/dinput8.dll
 // (md5 9ca08760b52fcf1f126a61b35836fb86).
     {4499, 21}, {4503, 21}, {4688, 21}, {4670, 22}, {4674, 22}, {4498, 23},
     {4501, 23}, {4514, 23}, {4672, 23}, {4675, 23}, {10959, 24}, {4689, 24},
