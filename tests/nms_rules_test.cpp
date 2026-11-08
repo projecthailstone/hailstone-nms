@@ -11,7 +11,7 @@
 #include <fstream>
 #include <map>
 
-#include "nmsc_byte_io.h"
+#include "hailstone_byte_io.h"
 #include "nms_ini.h"
 #include "nms_loot.h"
 #include "nms_options.h"
@@ -377,7 +377,7 @@ TEST_CASE("NMS ini files") {
     ini.set("AlwaysKeep", "1001", "Silk");
     ini.set("New", "k", "v");
     CHECK(ini.to_string() == "[AlwaysKeep]\n1001=Silk\n13005=Rat Ears\n\n[AlwaysSell]\n\n[New]\nk=v\n");
-    nmsc::test::ScratchDir dir("nms_ini_test");
+    hailstone::test::ScratchDir dir("nms_ini_test");
     std::filesystem::create_directories(dir.path());
     REQUIRE(ini.save(dir.path() / "x.ini"));
     nms::Ini again;
@@ -423,7 +423,7 @@ TEST_CASE("NMS Personal Loot snapshots round trip (common/eq_packet_structs.h)")
 
 TEST_CASE("NMS Personal Loot: rules answer rows, the window opens for the rest (loot_window.cpp OnList)") {
     namespace fs = std::filesystem;
-    nmsc::test::ScratchDir dir_scratch("nms_loot_test");
+    hailstone::test::ScratchDir dir_scratch("nms_loot_test");
     fs::path dir = dir_scratch.path();
     fs::create_directories(dir);
     {
@@ -587,7 +587,7 @@ TEST_CASE("NMS extended target: the server's pet slots are hidden (zone/client_p
 }
 
 TEST_CASE("NMS OP_SendCharacterSets decodes as the NMS world writes it") {
-    nmsc::ByteWriter w;
+    hailstone::ByteWriter w;
     for (std::uint32_t x : {7u, 7u, 2u, 1u, 4u, 12u, 1u, 100u, 200u, 0u, 1u}) w.le(x);
     for (std::uint32_t i = 0; i < 64; ++i) {
         w.le<std::uint32_t>(i < 2 ? 7 + i : 0);

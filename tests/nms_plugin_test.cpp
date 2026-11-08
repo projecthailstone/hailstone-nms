@@ -32,7 +32,7 @@
 #include "nms_packets.h"
 #include "nms_rules.h"
 
-using namespace nmsc;
+using namespace hailstone;
 namespace fs = std::filesystem;
 
 namespace {
@@ -42,7 +42,7 @@ struct Host {
     std::shared_ptr<game::ExtensionChain> chain_ptr = std::make_shared<game::ExtensionChain>();
     game::ExtensionChain& chain = *chain_ptr;
     // The connection asks the plugins' chain and runs the hooks, as the app's does (net::ConnectionOptions).
-    mq_test::World world{"nmsc_nms_plugin_test", options()};
+    mq_test::World world{"hailstone_nms_plugin_test", options()};
     fs::path plugin_dir = world.dir / "plugins";
     plugin::Policy policy;
     plugin::UiBridge bridge;
@@ -55,9 +55,9 @@ struct Host {
         // As a player installs it (or the server sends it): plugins/nms/ with the binary and its ui/.
         const fs::path dir = plugin_dir / "nms";
         fs::create_directories(dir);
-        const fs::path built(NMSC_NMS_PLUGIN);
+        const fs::path built(HAILSTONE_NMS_PLUGIN);
         fs::copy_file(built, dir / built.filename(), fs::copy_options::overwrite_existing);
-        fs::copy(NMSC_NMS_UI_DIR, dir / "ui", fs::copy_options::recursive);
+        fs::copy(HAILSTONE_NMS_UI_DIR, dir / "ui", fs::copy_options::recursive);
         plugin::Rules r; // a server without a hailstone.cfg: a player's plugin may do everything
         r.dir = world.dir / "servers" / "nms";
         policy.set(r);
@@ -377,7 +377,7 @@ TEST_CASE("NMS plugin windows: Personal Loot, the vault and the waypoints in the
         Host h;
         net::GameConnection& c = h.c();
         const fs::path dir = h.world.dir;
-        const fs::path src = fs::path(NMSC_CLIENT_UI_DIR) / pack; // the client's own packs
+        const fs::path src = fs::path(HAILSTONE_CLIENT_UI_DIR) / pack; // the client's own packs
         REQUIRE(fs::exists(src));
         fs::copy(src, dir / pack, fs::copy_options::recursive);
         platform::set_data_dir_for_tests(dir); // (the notes window writes notes.txt there)
@@ -605,7 +605,7 @@ TEST_CASE("NMS plugin windows: the Pet window covers the pack's on an NMS server
         Host h;
         net::GameConnection& c = h.c();
         const fs::path dir = h.world.dir;
-        const fs::path src = fs::path(NMSC_CLIENT_UI_DIR) / pk.pack; // the client's own packs
+        const fs::path src = fs::path(HAILSTONE_CLIENT_UI_DIR) / pk.pack; // the client's own packs
         fs::copy(src, dir / pk.pack, fs::copy_options::recursive);
         platform::set_data_dir_for_tests(dir);
         REQUIRE(h.plugins->load("nms"));

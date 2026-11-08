@@ -2,7 +2,7 @@
 
 // The NMS plugin: what the NMS server's client (NMS/dinput8.dll, the patch the NMS server ships with the game) does
 // differently from the stock RoF2 client, as a Hailstone plugin built only against the plugin SDK
-// (sdk/nmsc_plugin.h). docs/plugins/nms.md.
+// (sdk/hailstone_plugin.h). docs/plugins/nms.md.
 //
 // It may load on any server (a player's copy in plugins/nms/, or the server's own), so it starts inactive
 // (set_active(0)): none of its hooks, switches or commands run until it sees an NMS server, which is the world's
@@ -28,7 +28,7 @@
 #include "nms_rules.h"
 #include "nms_vault.h"
 #include "nms_waypoints.h"
-#include "nmsc_plugin.h"
+#include "hailstone_plugin.h"
 
 namespace nms {
 
@@ -39,7 +39,7 @@ public:
     void initialize();
     void shutdown();
     // OnPacket: true drops the packet.
-    bool packet(int stream, int direction, NmscPacket& p);
+    bool packet(int stream, int direction, HailstonePacket& p);
     void pulse();
     void zoned();
     // OnFilterChat: true hides the line.
@@ -66,12 +66,12 @@ public:
     void after_combat_ability(std::uint32_t spell_id, bool used);
     std::string combat_effect_label() const;
     bool hide_xtarget_slot(int slot) const;
-    bool item_right_click(const NmscItemSlot& slot);
+    bool item_right_click(const HailstoneItemSlot& slot);
     bool game_command(const std::string& handler, const std::string& args);
-    std::vector<std::string> who_lines(const NmscWho& who) const;
+    std::vector<std::string> who_lines(const HailstoneWho& who) const;
     std::optional<std::string> label(int type, const std::string& text) const;
     std::optional<std::string> item_level_line(std::uint32_t spell_id) const;
-    std::optional<std::string> list_level(const NmscItem& item) const;
+    std::optional<std::string> list_level(const HailstoneItem& item) const;
 
     // ---- commands (nms_plugin.cpp) ----
     void command(const std::string& word, const std::string& args);
@@ -106,8 +106,8 @@ private:
     void zone_server_changed();
     void send_cauth();
     void ensure_loot_rules();
-    void run_scribe(const NmscItemSlot& slot, std::uint8_t target_class);
-    bool zone_packet(NmscPacket& p, std::int64_t now);
+    void run_scribe(const HailstoneItemSlot& slot, std::uint8_t target_class);
+    bool zone_packet(HailstonePacket& p, std::int64_t now);
 
     bool for_this_server() const;
 
@@ -130,7 +130,7 @@ private:
     // (g_pendingScribeThis as the slot, its target class, g_scribeEndTick) and g_scribeInProgress, which makes
     // GetSpellLevelNeeded answer as for a scroll on the cursor while the original runs.
     struct PendingScribe {
-        NmscItemSlot slot{};
+        HailstoneItemSlot slot{};
         std::uint8_t target_class = 0;
         std::int64_t due_ms = 0;
     };
@@ -146,16 +146,16 @@ Nms& plugin();
 // ---- the host, in C++ (nms_plugin.cpp) ----
 std::int64_t now_ms();
 // The player as the client knows it; size 0 when it cannot be read.
-NmscPlayer player();
-bool player_spawned(const NmscPlayer& p); // its spawn is in the zone (the original's pinstLocalPlayer)
-bool in_zone(const NmscPlayer& p);        // in a zone (the connection's InZone or Camping)
-std::optional<NmscSpell> spell(std::uint32_t id);
-std::optional<NmscSpawn> spawn(std::uint32_t id);
-std::optional<NmscItem> item(const NmscItemSlot& slot);
+HailstonePlayer player();
+bool player_spawned(const HailstonePlayer& p); // its spawn is in the zone (the original's pinstLocalPlayer)
+bool in_zone(const HailstonePlayer& p);        // in a zone (the connection's InZone or Camping)
+std::optional<HailstoneSpell> spell(std::uint32_t id);
+std::optional<HailstoneSpawn> spawn(std::uint32_t id);
+std::optional<HailstoneItem> item(const HailstoneItemSlot& slot);
 // A line in the chat window in one of the game's chat colours (0 the default).
 void chat(const std::string& text, std::uint32_t color = 0);
 void command_line(const std::string& line);
-void send(const Packet& p, int stream = NMSC_STREAM_ZONE);
+void send(const Packet& p, int stream = HAILSTONE_STREAM_ZONE);
 std::string zone_name(std::uint32_t zone_id);
 void log_info(const std::string& text);
 

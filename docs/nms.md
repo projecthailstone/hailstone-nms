@@ -2,7 +2,7 @@
 
 This repository is the NMS server's client changes as a Hailstone plugin. It does what the NMS patch
 (`NMS/dinput8.dll`, which the NMS server ships with the game) does to the stock RoF2 client. It is built only
-against the plugin SDK (`sdk/nmsc_plugin.h`, `sdk/nmsc_byte_io.h`), like any server's plugin, and the client has no
+against the plugin SDK (`sdk/hailstone_plugin.h`, `sdk/hailstone_byte_io.h`), like any server's plugin, and the client has no
 NMS code of its own. It is also the test case for the plugin interface: if a server's client needs something a plugin
 cannot do, the interface is missing it (docs/research/plugin-v2-inventory.md).
 

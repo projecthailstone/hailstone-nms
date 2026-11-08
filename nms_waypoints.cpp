@@ -13,9 +13,9 @@ struct WaypointRow {
 };
 
 constexpr WaypointRow kWaypoints[] = {
-#define NMSC_WAYPOINT(long_name, zone, category, expansion) {long_name, zone, category, expansion},
+#define HAILSTONE_WAYPOINT(long_name, zone, category, expansion) {long_name, zone, category, expansion},
 #include "nms_waypoints.inc"
-#undef NMSC_WAYPOINT
+#undef HAILSTONE_WAYPOINT
 };
 
 std::string_view base_name(std::string_view name) {

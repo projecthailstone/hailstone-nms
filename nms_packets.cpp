@@ -2,12 +2,12 @@
 
 #include <stdexcept>
 
-#include "nmsc_byte_io.h"
+#include "hailstone_byte_io.h"
 
 namespace nms {
 
-using nmsc::ByteReader;
-using nmsc::ByteWriter;
+using hailstone::ByteReader;
+using hailstone::ByteWriter;
 
 namespace {
 
