@@ -46,69 +46,69 @@ namespace {
 
 // ---- the arguments
 
-std::optional<NmscValue> arg(const NmscArgs* args, std::size_t i) {
-    NmscValue v{};
-    if (!nmsc->arg(nmsc->host, args, i, &v)) return std::nullopt;
+std::optional<HailstoneValue> arg(const HailstoneArgs* args, std::size_t i) {
+    HailstoneValue v{};
+    if (!host->arg(host->host, args, i, &v)) return std::nullopt;
     return v;
 }
 
-std::int64_t arg_int(const NmscArgs* args, std::size_t i, std::int64_t fallback = 0) {
+std::int64_t arg_int(const HailstoneArgs* args, std::size_t i, std::int64_t fallback = 0) {
     auto v = arg(args, i);
     if (!v) return fallback;
-    if (v->kind == NMSC_INT || v->kind == NMSC_BOOL) return v->i;
-    if (v->kind == NMSC_FLOAT) return static_cast<std::int64_t>(v->f);
+    if (v->kind == HAILSTONE_INT || v->kind == HAILSTONE_BOOL) return v->i;
+    if (v->kind == HAILSTONE_FLOAT) return static_cast<std::int64_t>(v->f);
     return fallback;
 }
 
-bool arg_bool(const NmscArgs* args, std::size_t i) {
+bool arg_bool(const HailstoneArgs* args, std::size_t i) {
     auto v = arg(args, i);
     if (!v) return false;
-    if (v->kind == NMSC_BOOL || v->kind == NMSC_INT) return v->i != 0;
-    return v->kind != NMSC_NIL;
+    if (v->kind == HAILSTONE_BOOL || v->kind == HAILSTONE_INT) return v->i != 0;
+    return v->kind != HAILSTONE_NIL;
 }
 
-std::string arg_string(const NmscArgs* args, std::size_t i) {
+std::string arg_string(const HailstoneArgs* args, std::size_t i) {
     auto v = arg(args, i);
-    return v && v->kind == NMSC_STRING && v->s ? std::string(v->s) : std::string();
+    return v && v->kind == HAILSTONE_STRING && v->s ? std::string(v->s) : std::string();
 }
 
 // A table argument's boolean field, when it has one.
-void arg_flag(const NmscArgs* args, std::size_t i, const char* key, bool& out) {
-    NmscValue v{};
-    if (nmsc->arg_field(nmsc->host, args, i, key, &v) && (v.kind == NMSC_BOOL || v.kind == NMSC_INT)) out = v.i != 0;
+void arg_flag(const HailstoneArgs* args, std::size_t i, const char* key, bool& out) {
+    HailstoneValue v{};
+    if (host->arg_field(host->host, args, i, key, &v) && (v.kind == HAILSTONE_BOOL || v.kind == HAILSTONE_INT)) out = v.i != 0;
 }
 
 // ---- the result
 
 struct Out {
-    NmscOut* o;
-    void table() { nmsc->out_begin_table(nmsc->host, o); }
-    void array() { nmsc->out_begin_array(nmsc->host, o); }
-    void end() { nmsc->out_end(nmsc->host, o); }
-    void key(const char* k) { nmsc->out_key(nmsc->host, o, k); }
+    HailstoneOut* o;
+    void table() { host->out_begin_table(host->host, o); }
+    void array() { host->out_begin_array(host->host, o); }
+    void end() { host->out_end(host->host, o); }
+    void key(const char* k) { host->out_key(host->host, o, k); }
     void value(std::int64_t i) {
-        NmscValue v{};
-        v.kind = NMSC_INT;
+        HailstoneValue v{};
+        v.kind = HAILSTONE_INT;
         v.i = i;
-        nmsc->out_value(nmsc->host, o, &v);
+        host->out_value(host->host, o, &v);
     }
     void number(double f) {
-        NmscValue v{};
-        v.kind = NMSC_FLOAT;
+        HailstoneValue v{};
+        v.kind = HAILSTONE_FLOAT;
         v.f = f;
-        nmsc->out_value(nmsc->host, o, &v);
+        host->out_value(host->host, o, &v);
     }
     void flag(bool b) {
-        NmscValue v{};
-        v.kind = NMSC_BOOL;
+        HailstoneValue v{};
+        v.kind = HAILSTONE_BOOL;
         v.i = b ? 1 : 0;
-        nmsc->out_value(nmsc->host, o, &v);
+        host->out_value(host->host, o, &v);
     }
     void text(const std::string& s) {
-        NmscValue v{};
-        v.kind = NMSC_STRING;
+        HailstoneValue v{};
+        v.kind = HAILSTONE_STRING;
         v.s = s.c_str();
-        nmsc->out_value(nmsc->host, o, &v);
+        host->out_value(host->host, o, &v);
     }
     void field(const char* k, std::int64_t i) { key(k), value(i); }
     void field_number(const char* k, double f) { key(k), number(f); }
@@ -124,7 +124,7 @@ Nms* active() {
 
 // ---- the Personal Loot window
 
-int f_loot(void*, const NmscArgs*, NmscOut* o) {
+int f_loot(void*, const HailstoneArgs*, HailstoneOut* o) {
     Nms* n = active();
     if (!n) return 0;
     static std::uint32_t reset_seen = 0; // /loot reset as the window last saw it
@@ -210,7 +210,7 @@ int f_loot(void*, const NmscArgs*, NmscOut* o) {
     return 1;
 }
 
-int f_loot_send(void*, const NmscArgs* args, NmscOut*) {
+int f_loot_send(void*, const HailstoneArgs* args, HailstoneOut*) {
     if (Nms* n = active()) {
         LootSend a;
         a.action = static_cast<std::uint32_t>(arg_int(args, 0));
@@ -222,7 +222,7 @@ int f_loot_send(void*, const NmscArgs* args, NmscOut*) {
     return 0;
 }
 
-int f_loot_rule(void*, const NmscArgs* args, NmscOut*) {
+int f_loot_rule(void*, const HailstoneArgs* args, HailstoneOut*) {
     Nms* n = active();
     if (!n) return 0;
     const auto id = static_cast<std::uint32_t>(arg_int(args, 0));
@@ -232,7 +232,7 @@ int f_loot_rule(void*, const NmscArgs* args, NmscOut*) {
     return 0;
 }
 
-int f_loot_window(void*, const NmscArgs* args, NmscOut*) {
+int f_loot_window(void*, const HailstoneArgs* args, HailstoneOut*) {
     Nms* n = active();
     if (!n) return 0;
     PersonalLoot& loot = n->loot;
@@ -270,7 +270,7 @@ void bag_items(Out& out, const std::vector<VaultBagItem>& items) {
     out.end();
 }
 
-int f_vault(void*, const NmscArgs*, NmscOut* o) {
+int f_vault(void*, const HailstoneArgs*, HailstoneOut* o) {
     Nms* n = active();
     if (!n) return 0;
     const Vault& v = n->vault;
@@ -313,7 +313,7 @@ int f_vault(void*, const NmscArgs*, NmscOut* o) {
         out.end();
     }
     out.end();
-    if (auto cur = item(NmscItemSlot{0, NMSC_SLOT_CURSOR, -1, -1}); cur && cur->name[0]) {
+    if (auto cur = item(HailstoneItemSlot{0, HAILSTONE_SLOT_CURSOR, -1, -1}); cur && cur->name[0]) {
         out.key("cursor");
         out.table();
         out.field_text("name", cur->name);
@@ -324,18 +324,18 @@ int f_vault(void*, const NmscArgs*, NmscOut* o) {
     return 1;
 }
 
-int f_vault_say(void*, const NmscArgs* args, NmscOut*) {
+int f_vault_say(void*, const HailstoneArgs* args, HailstoneOut*) {
     if (!active()) return 0;
     const std::string cmd = arg_string(args, 0);
     if (cmd.rfind("#vault_", 0) != 0) return 0;
     command_line("/say " + cmd);
     // FUN_1019a420's Bank button: after the say, CBankWnd::Activate(pinstCBankWnd, pLocalPlayer), the bank window
     // with the player as its banker (the server answers the bank moves). A client before open_bank cannot.
-    if (cmd == "#vault_bank" && NMSC_HOST_HAS(nmsc, open_bank)) nmsc->open_bank(nmsc->host, 0);
+    if (cmd == "#vault_bank" && HAILSTONE_HOST_HAS(host, open_bank)) host->open_bank(host->host, 0);
     return 0;
 }
 
-int f_vault_window(void*, const NmscArgs* args, NmscOut*) {
+int f_vault_window(void*, const HailstoneArgs* args, HailstoneOut*) {
     Nms* n = active();
     if (!n) return 0;
     Vault& v = n->vault;
@@ -352,10 +352,10 @@ int f_vault_window(void*, const NmscArgs* args, NmscOut*) {
         if (const VaultSlot* s = v.at(slot); s && s->item_id) {
             std::uint32_t augs[6];
             for (std::size_t k = 0; k < 6; ++k) augs[k] = static_cast<std::uint32_t>(s->augments[k]);
-            nmsc->inspect_item(nmsc->host, static_cast<std::uint32_t>(s->item_id), augs);
+            host->inspect_item(host->host, static_cast<std::uint32_t>(s->item_id), augs);
         }
     } else if (op == "inspectItem" && slot > 0) {
-        nmsc->inspect_item(nmsc->host, static_cast<std::uint32_t>(slot), nullptr);
+        host->inspect_item(host->host, static_cast<std::uint32_t>(slot), nullptr);
     }
     return 0;
 }
@@ -367,7 +367,7 @@ int f_vault_window(void*, const NmscArgs* args, NmscOut*) {
 constexpr const char* kPatchContinents[] = {"Antonica", "Faydwer", "Odus",      "Kunark", "Velious",
                                             "Luclin",   "The Planes", "Discord", "Special"};
 
-int f_waypoints(void*, const NmscArgs*, NmscOut* o) {
+int f_waypoints(void*, const HailstoneArgs*, HailstoneOut* o) {
     Nms* n = active();
     if (!n || !n->waypoints) return 0;
     const WaypointList& wl = *n->waypoints;
@@ -402,7 +402,7 @@ int f_waypoints(void*, const NmscArgs*, NmscOut* o) {
     return 1;
 }
 
-int f_waypoint_request(void*, const NmscArgs* args, NmscOut*) {
+int f_waypoint_request(void*, const HailstoneArgs* args, HailstoneOut*) {
     Nms* n = active();
     if (!n || !n->waypoints) return 0;
     WaypointRequest r;
@@ -419,7 +419,7 @@ int f_waypoint_request(void*, const NmscArgs* args, NmscOut*) {
 
 // ---- the Pet window's #petcmd
 
-int f_pets(void*, const NmscArgs*, NmscOut* o) {
+int f_pets(void*, const HailstoneArgs*, HailstoneOut* o) {
     Nms* n = active();
     if (!n) return 0;
     const std::uint32_t focused = player().pet_id;
@@ -459,7 +459,7 @@ int f_pets(void*, const NmscArgs*, NmscOut* o) {
     return 1;
 }
 
-int f_pet_command(void*, const NmscArgs* args, NmscOut*) {
+int f_pet_command(void*, const HailstoneArgs* args, HailstoneOut*) {
     Nms* n = active();
     if (!n) return 0;
     if (auto line = n->pet_commands.command(arg_string(args, 0), arg_string(args, 1), arg_string(args, 2)))
@@ -467,7 +467,7 @@ int f_pet_command(void*, const NmscArgs* args, NmscOut*) {
     return 0;
 }
 
-int f_pet_swarm_query(void*, const NmscArgs*, NmscOut*) {
+int f_pet_swarm_query(void*, const HailstoneArgs*, HailstoneOut*) {
     Nms* n = active();
     if (!n) return 0;
     if (auto line = n->pet_commands.query_swarm()) command_line("/say " + *line);
@@ -479,7 +479,7 @@ int f_pet_swarm_query(void*, const NmscArgs*, NmscOut*) {
 void register_ui_functions() {
     static const struct {
         const char* name;
-        NmscUiFn fn;
+        HailstoneUiFn fn;
     } kFunctions[] = {{"loot", f_loot},
                       {"loot_send", f_loot_send},
                       {"loot_rule", f_loot_rule},
@@ -492,7 +492,7 @@ void register_ui_functions() {
                       {"pets", f_pets},
                       {"pet_command", f_pet_command},
                       {"pet_swarm_query", f_pet_swarm_query}};
-    for (const auto& f : kFunctions) nmsc->add_ui_function(nmsc->host, f.name, f.fn, nullptr);
+    for (const auto& f : kFunctions) host->add_ui_function(host->host, f.name, f.fn, nullptr);
 }
 
 } // namespace nms

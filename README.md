@@ -19,11 +19,11 @@ cd hailstone-client
 git clone https://github.com/projecthailstone/hailstone-nms.git plugins/nms
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build
-build/nmsc_tests          # the client's tests and this plugin's
+build/hailstone_tests          # the client's tests and this plugin's
 ```
 
 The client's `.gitignore` keeps `plugins/nms/` out of its own repository. With the folder there, the client builds the
-plugin into `build/hailstone/plugins/nms/`, adds its tests (`tests/nms_*_test.cpp`) to `nmsc_tests` and its decoders
+plugin into `build/hailstone/plugins/nms/`, adds its tests (`tests/nms_*_test.cpp`) to `hailstone_tests` and its decoders
 (`tests/fuzz_decoders_nms.inc`) to the fuzz lists. Without it, the client builds as before. The Project Triune
 plugin's tests also load this plugin when both are checked out.
 

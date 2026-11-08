@@ -12,9 +12,9 @@
 #include "plugin/native_plugins.h"
 #include "scratch_dir.h"
 
-using namespace nmsc;
-using namespace nmsc::net;
-using namespace nmsc::test;
+using namespace hailstone;
+using namespace hailstone::net;
+using namespace hailstone::test;
 
 namespace {
 
@@ -49,7 +49,7 @@ TEST_CASE("NMS plugin's scribe path: a tome at once, a scroll after the book, th
     // The NMS plugin (plugins/nms), loaded as a client loads it, on the connection's hooks and extension chain.
     ScratchDir scratch("nms_scribe_test");
     std::filesystem::create_directories(scratch.path() / "plugins");
-    std::filesystem::copy_file(NMSC_NMS_PLUGIN, scratch.path() / "plugins" / std::filesystem::path(NMSC_NMS_PLUGIN).filename());
+    std::filesystem::copy_file(HAILSTONE_NMS_PLUGIN, scratch.path() / "plugins" / std::filesystem::path(HAILSTONE_NMS_PLUGIN).filename());
     plugin::Hooks hooks;
     plugin::Policy policy;
     policy.set(plugin::Rules{});

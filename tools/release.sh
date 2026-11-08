@@ -20,7 +20,7 @@ CAPS=read,commands,actions,move,chat,events,ui,packets,extend,login # docs/nms.m
 RELEASE_REPO=projecthailstone/hailstone-nms
 DESCRIPTION="The NMS server's client features: personal loot, the vault, waypoints, pet commands. Off on other servers."
 AUTHOR="Project Hailstone"
-MIN_CLIENT=0.2.0-alpha # raise it when the plugin needs a newer SDK (sdk/nmsc_plugin.h) than this client has
+MIN_CLIENT=0.2.0-alpha # raise it when the plugin needs a newer SDK (sdk/hailstone_plugin.h) than this client has
 
 # ---- the rest is the same for every plugin
 version=${1:?usage: tools/release.sh <version> [--publish]}
@@ -35,7 +35,7 @@ image=${LINUX_IMAGE:-hailstone-linux-build:24.04}
 out=$here/release/v$version
 tag=v$version
 
-[ -f "$client/sdk/nmsc_plugin.h" ] || { echo "no hailstone-client at $client (set HAILSTONE_CLIENT)" >&2; exit 1; }
+[ -f "$client/sdk/hailstone_plugin.h" ] || { echo "no hailstone-client at $client (set HAILSTONE_CLIENT)" >&2; exit 1; }
 [ -x "$sign" ] || { echo "no hailstone_sign at $sign: build the client, or set HAILSTONE_SIGN" >&2; exit 1; }
 [ -f "$key" ] || { echo "no add-on key at $key: '$sign keygen $key' once, or set ADDON_KEY" >&2; exit 1; }
 if [ -n "$(git -C "$here" status --porcelain)" ]; then

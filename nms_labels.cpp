@@ -73,7 +73,7 @@ std::string classes(const Stats& c, bool titles) {
     const char* none = titles ? "None" : "";
     const std::int64_t* mask = server_stat(c, 1);
     if (!mask || *mask == 0) return none;
-    const NmscPlayer me = player();
+    const HailstonePlayer me = player();
     int level = static_cast<int>(me.level);
     if (titles && !player_spawned(me)) return none;
     std::string out;
@@ -132,7 +132,7 @@ std::optional<std::string> Nms::label(int type, const std::string& text) const {
     if (c.empty()) return std::nullopt;
     if (type == 19) {
         // Only while the target is the player (pinstTarget's spawn id == pinstLocalPlayer's).
-        const NmscPlayer me = player();
+        const HailstonePlayer me = player();
         if (me.target_id != 0 && me.target_id == me.spawn_id) return stat_percent(c, 2, 5);
         return std::nullopt;
     }
@@ -165,7 +165,7 @@ std::optional<std::string> Nms::item_level_line(std::uint32_t spell_id) const {
     return nms::level_needed_line(orig, mask, player().visible_class);
 }
 
-std::optional<std::string> Nms::list_level(const NmscItem& item) const {
+std::optional<std::string> Nms::list_level(const HailstoneItem& item) const {
     // The NMS patch's merchant Lvl column (CMerchantWnd::UpdateList detour, notes/nms-dinput8.md §3.6): for a spell
     // scroll the lowest level over the class mask ("%3d" so the string sort orders it), else over all 16 classes
     // when one can use it, else "--"; nullopt for anything else or without a class mask.

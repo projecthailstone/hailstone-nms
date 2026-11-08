@@ -16,7 +16,7 @@
 
 #include "nms_ini.h"
 
-NMSC_PLUGIN
+HAILSTONE_PLUGIN
 
 namespace nms {
 
@@ -38,9 +38,9 @@ std::string lower(std::string s) {
 
 // A folder the host writes into `fn`'s buffer; empty when it has none.
 template <typename F> fs::path host_dir(F fn) {
-    if (!nmsc || !fn) return {};
+    if (!host || !fn) return {};
     char buf[1024];
-    const int n = fn(nmsc->host, buf, sizeof buf);
+    const int n = fn(host->host, buf, sizeof buf);
     if (n <= 0 || static_cast<std::size_t>(n) >= sizeof buf) return {};
     return fs::path(std::string(buf, static_cast<std::size_t>(n)));
 }
@@ -74,7 +74,7 @@ void set_xtarget_hide_pets(void*, int value) {
     g_nms.save_options();
 }
 
-fs::path options_file() { return host_dir(nmsc ? nmsc->config_dir : nullptr) / "nms.ini"; }
+fs::path options_file() { return host_dir(host ? host->config_dir : nullptr) / "nms.ini"; }
 
 } // namespace
 
@@ -87,57 +87,57 @@ std::int64_t now_ms() {
         .count();
 }
 
-NmscPlayer player() {
-    NmscPlayer p{};
+HailstonePlayer player() {
+    HailstonePlayer p{};
     p.size = sizeof p;
-    if (!nmsc || !nmsc->get_player(nmsc->host, &p)) p = NmscPlayer{};
+    if (!host || !host->get_player(host->host, &p)) p = HailstonePlayer{};
     return p;
 }
 
-bool player_spawned(const NmscPlayer& p) { return p.spawn_id != 0 && spawn(p.spawn_id).has_value(); }
-bool in_zone(const NmscPlayer& p) { return p.in_zone != 0; }
+bool player_spawned(const HailstonePlayer& p) { return p.spawn_id != 0 && spawn(p.spawn_id).has_value(); }
+bool in_zone(const HailstonePlayer& p) { return p.in_zone != 0; }
 
-std::optional<NmscSpell> spell(std::uint32_t id) {
-    NmscSpell s{};
+std::optional<HailstoneSpell> spell(std::uint32_t id) {
+    HailstoneSpell s{};
     s.size = sizeof s;
-    if (!nmsc || !nmsc->get_spell(nmsc->host, id, &s)) return std::nullopt;
+    if (!host || !host->get_spell(host->host, id, &s)) return std::nullopt;
     return s;
 }
 
-std::optional<NmscSpawn> spawn(std::uint32_t id) {
-    NmscSpawn s{};
+std::optional<HailstoneSpawn> spawn(std::uint32_t id) {
+    HailstoneSpawn s{};
     s.size = sizeof s;
-    if (!nmsc || !nmsc->get_spawn(nmsc->host, id, &s)) return std::nullopt;
+    if (!host || !host->get_spawn(host->host, id, &s)) return std::nullopt;
     return s;
 }
 
-std::optional<NmscItem> item(const NmscItemSlot& slot) {
-    NmscItem it{};
+std::optional<HailstoneItem> item(const HailstoneItemSlot& slot) {
+    HailstoneItem it{};
     it.size = sizeof it;
-    if (!nmsc || !nmsc->get_item(nmsc->host, &slot, &it)) return std::nullopt;
+    if (!host || !host->get_item(host->host, &slot, &it)) return std::nullopt;
     return it;
 }
 
 void chat(const std::string& text, std::uint32_t color) {
-    if (nmsc) nmsc->write_chat_color(nmsc->host, text.c_str(), color);
+    if (host) host->write_chat_color(host->host, text.c_str(), color);
 }
 
 void command_line(const std::string& line) {
-    if (nmsc) nmsc->do_command(nmsc->host, line.c_str());
+    if (host) host->do_command(host->host, line.c_str());
 }
 
 void send(const Packet& p, int stream) {
-    if (nmsc) nmsc->send_packet(nmsc->host, stream, p.opcode, p.data.data(), p.data.size());
+    if (host) host->send_packet(host->host, stream, p.opcode, p.data.data(), p.data.size());
 }
 
 std::string zone_name(std::uint32_t zone_id) {
     char buf[64];
-    if (!nmsc || nmsc->zone_name(nmsc->host, zone_id, buf, sizeof buf) <= 0) return {};
+    if (!host || host->zone_name(host->host, zone_id, buf, sizeof buf) <= 0) return {};
     return buf;
 }
 
 void log_info(const std::string& text) {
-    if (nmsc) nmsc->log(nmsc->host, 1, text.c_str());
+    if (host) host->log(host->host, 1, text.c_str());
 }
 
 // ---------------------------------------------------------------- options
@@ -155,16 +155,16 @@ void Nms::save_options() {
 
 void Nms::initialize() {
     // Inactive until it sees an NMS server: on any other server the stock client throughout.
-    nmsc->set_active(nmsc->host, 0);
+    host->set_active(host->host, 0);
     Ini global, profile, server;
     global.load(options_file());
     // servers/<profile>/plugin-config/nms/: the server's own nms.ini, and its server.ini two folders up.
-    const fs::path server_dir = host_dir(nmsc->server_config_dir);
+    const fs::path server_dir = host_dir(host->server_config_dir);
     const bool has_profile = !server_dir.empty() && profile.load(server_dir.parent_path().parent_path() / "server.ini");
     const bool has_server = !server_dir.empty() && server.load(server_dir / "nms.ini");
     std::vector<std::string> warnings;
     options = read_options({&global, has_profile ? &profile : nullptr, has_server ? &server : nullptr}, &warnings);
-    for (const auto& w : warnings) nmsc->log(nmsc->host, 2, ("nms.ini " + w).c_str());
+    for (const auto& w : warnings) host->log(host->host, 2, ("nms.ini " + w).c_str());
     register_ui_functions();
 }
 
@@ -173,41 +173,41 @@ void Nms::shutdown() {}
 // Whether this login's server is one the plugin serves: not one of Options::skip_servers (a server that sends the
 // same packets and has its own plugin). Unknown (no server_info yet): yes, as before there was a check.
 bool Nms::for_this_server() const {
-    NmscServer s{};
+    HailstoneServer s{};
     s.size = sizeof s;
-    if (!nmsc || !nmsc->server_info || !nmsc->server_info(nmsc->host, &s)) return true;
+    if (!host || !host->server_info || !host->server_info(host->host, &s)) return true;
     return !server_matches(s.name, s.world, options.skip_servers);
 }
 
 void Nms::activate() {
     if (detected_ || !for_this_server()) return;
     detected_ = true;
-    nmsc->set_active(nmsc->host, 1);
+    host->set_active(host->host, 1);
     // The patch's switches: 8-digit item ids in links (SAY_LINK_BODY_SIZE 77); its class test NOPed (0x45ea0f,
     // 75 10 -> 90 90: moving breaks Hide unless sneaking, any class); AAs from level 1 and Train All. CanUseItem's
     // detour follows the class mask (update_flags).
-    nmsc->set_flag(nmsc->host, NMSC_FLAG_WIDE_ITEM_LINKS | NMSC_FLAG_HIDE_ANY_CLASS | NMSC_FLAG_AA_ANY_LEVEL |
-                                   NMSC_FLAG_AA_TRAIN_ALL,
+    host->set_flag(host->host, HAILSTONE_FLAG_WIDE_ITEM_LINKS | HAILSTONE_FLAG_HIDE_ANY_CLASS | HAILSTONE_FLAG_AA_ANY_LEVEL |
+                                   HAILSTONE_FLAG_AA_TRAIN_ALL,
                    1);
     update_flags();
     for (const char* c : kCommands) AddCommand(c, on_command, const_cast<char*>(c));
-    nmsc->add_option(nmsc->host, "xtarget_hide_pets", "Hide My Pets in Extended Target", 0, 1, get_xtarget_hide_pets,
+    host->add_option(host->host, "xtarget_hide_pets", "Hide My Pets in Extended Target", 0, 1, get_xtarget_hide_pets,
                      set_xtarget_hide_pets, nullptr);
     // The patch's own windows (gamepad's More page and the EQ menu's Plugins).
-    nmsc->add_menu(nmsc->host, "Personal Loot", "/loot show");
+    host->add_menu(host->host, "Personal Loot", "/loot show");
     log_info("NMS server detected");
 }
 
 void Nms::update_flags() {
     // The patch's CanUseItem / CanEquipItem detours: everything usable while the character has a class mask.
-    nmsc->set_flag(nmsc->host, NMSC_FLAG_ITEMS_ANY_CLASS, class_mask() != 0 ? 1 : 0);
+    host->set_flag(host->host, HAILSTONE_FLAG_ITEMS_ANY_CLASS, class_mask() != 0 ? 1 : 0);
 }
 
 std::uint32_t Nms::class_mask() const {
     // OP_ServerAuthStats key 1, until it arrives the character set's mask (GameConnection::server_class_mask keeps
     // the same order for what the client shows).
     if (player_mask_) return player_mask_;
-    const NmscPlayer p = player();
+    const HailstonePlayer p = player();
     auto it = character_masks_.find(lower(p.name));
     return it == character_masks_.end() ? 0 : it->second;
 }
@@ -215,7 +215,7 @@ std::uint32_t Nms::class_mask() const {
 std::uint32_t Nms::own_classes() const {
     std::uint32_t classes = class_mask();
     if (classes == 0) {
-        const NmscPlayer p = player();
+        const HailstonePlayer p = player();
         if (p.class_id > 0) classes = 1u << ((p.class_id - 1) & 31);
     }
     return classes;
@@ -224,11 +224,11 @@ std::uint32_t Nms::own_classes() const {
 void Nms::character_sets(const CharacterSets& sets) {
     // Multiclass bit masks from NMS's character sets, by character name, into the core.
     character_sets_seen_ = true;
-    for (const auto& [name, mask] : character_masks_) nmsc->set_character_classes(nmsc->host, name.c_str(), 0);
+    for (const auto& [name, mask] : character_masks_) host->set_character_classes(host->host, name.c_str(), 0);
     character_masks_.clear();
     for (const auto& ch : sets.characters) {
         character_masks_[lower(ch.name)] = ch.classes;
-        nmsc->set_character_classes(nmsc->host, ch.name.c_str(), ch.classes);
+        host->set_character_classes(host->host, ch.name.c_str(), ch.classes);
     }
     activate();
     update_flags();
@@ -247,24 +247,24 @@ void Nms::server_stats(const std::vector<std::pair<std::uint32_t, std::int64_t>>
     // Key 1 is the patch's class mask (g_cauth_bitmask); 0 falls back to the character set's.
     if (auto it = stats.find(1); it != stats.end()) {
         player_mask_ = static_cast<std::uint32_t>(it->second);
-        nmsc->set_player_classes(nmsc->host, player_mask_);
+        host->set_player_classes(host->host, player_mask_);
     }
     // FUN_10153300 writes keys 2/5/3/6/4/7 into the profile's current / max HP, mana and endurance, and the Max /
     // Cur detours answer them (§2c): the host's set_vitals does both.
     const Vitals sv = server_vitals(stats);
-    NmscVitals n{};
+    HailstoneVitals n{};
     auto put = [&n](const std::optional<std::int32_t>& f, std::uint32_t bit, std::int32_t& out) {
         if (!f) return;
         n.has |= bit;
         out = *f;
     };
-    put(sv.max_hp, NMSC_VITAL_MAX_HP, n.max_hp);
-    put(sv.cur_hp, NMSC_VITAL_CUR_HP, n.cur_hp);
-    put(sv.max_mana, NMSC_VITAL_MAX_MANA, n.max_mana);
-    put(sv.cur_mana, NMSC_VITAL_CUR_MANA, n.cur_mana);
-    put(sv.max_endurance, NMSC_VITAL_MAX_ENDURANCE, n.max_endurance);
-    put(sv.cur_endurance, NMSC_VITAL_CUR_ENDURANCE, n.cur_endurance);
-    if (n.has) nmsc->set_vitals(nmsc->host, &n);
+    put(sv.max_hp, HAILSTONE_VITAL_MAX_HP, n.max_hp);
+    put(sv.cur_hp, HAILSTONE_VITAL_CUR_HP, n.cur_hp);
+    put(sv.max_mana, HAILSTONE_VITAL_MAX_MANA, n.max_mana);
+    put(sv.cur_mana, HAILSTONE_VITAL_CUR_MANA, n.cur_mana);
+    put(sv.max_endurance, HAILSTONE_VITAL_MAX_ENDURANCE, n.max_endurance);
+    put(sv.cur_endurance, HAILSTONE_VITAL_CUR_ENDURANCE, n.cur_endurance);
+    if (n.has) host->set_vitals(host->host, &n);
     update_flags();
 }
 
@@ -278,14 +278,14 @@ void Nms::zone_server_changed() {
 
 // ---------------------------------------------------------------- packets
 
-bool Nms::packet(int stream, int direction, NmscPacket& p) {
+bool Nms::packet(int stream, int direction, HailstonePacket& p) {
     // On another server's login (one that sends the same packets and has its own plugin) nothing is touched, so that
     // plugin sees them.
     if (!for_this_server()) return false;
     std::span<std::byte> data(reinterpret_cast<std::byte*>(p.data), p.size);
-    if (direction == NMSC_OUT) {
+    if (direction == HAILSTONE_OUT) {
         // The NMS patch's CRC rewrite (nms_packets.h), on an NMS world only (OP_SendCharacterSets came first).
-        if (stream == NMSC_STREAM_WORLD && character_sets_seen_ && apply_hardware_id(p.opcode, data, options.hardware_id))
+        if (stream == HAILSTONE_STREAM_WORLD && character_sets_seen_ && apply_hardware_id(p.opcode, data, options.hardware_id))
             log_info(std::format("NMS: OP_World_Client_CRC{} carries the fixed hardware id",
                                  p.opcode == op::World_Client_CRC1 ? 1 : 2));
         return false;
@@ -296,7 +296,7 @@ bool Nms::packet(int stream, int direction, NmscPacket& p) {
         activate();
         return true;
     }
-    if (stream == NMSC_STREAM_WORLD) {
+    if (stream == HAILSTONE_STREAM_WORLD) {
         switch (p.opcode) {
         case op::SendCharacterSets:
             if (auto sets = decode_character_sets(data)) character_sets(*sets);
@@ -311,7 +311,7 @@ bool Nms::packet(int stream, int direction, NmscPacket& p) {
 }
 
 // The HandleWorldMessage detour's opcodes. True = the patch swallows the packet (the original never sees it).
-bool Nms::zone_packet(NmscPacket& p, std::int64_t now) {
+bool Nms::zone_packet(HailstonePacket& p, std::int64_t now) {
     const Bytes data(reinterpret_cast<const std::byte*>(p.data), p.size);
     switch (p.opcode) {
     case op::ServerAuthStats:
@@ -322,9 +322,9 @@ bool Nms::zone_packet(NmscPacket& p, std::int64_t now) {
         if (auto list = decode_pet_list(data)) {
             pets_ = *list;
             have_pet_list_ = true;
-            std::vector<NmscPet> pets;
+            std::vector<HailstonePet> pets;
             for (const auto& e : pets_) pets.push_back({e.spawn_id, e.class_id});
-            nmsc->set_pet_list(nmsc->host, pets.data(), pets.size());
+            host->set_pet_list(host->host, pets.data(), pets.size());
         }
         return true;
     default: break;
@@ -387,7 +387,7 @@ bool Nms::zone_packet(NmscPacket& p, std::int64_t now) {
 
 void Nms::send_cauth() {
     // FUN_100ed9f0: once per zone, after the class mask and the spawn id are known (EnterZone re-arms it).
-    const NmscPlayer me = player();
+    const HailstonePlayer me = player();
     send(encode_cauth(own_classes(), me.spawn_id, options.auth_key));
 }
 
@@ -406,7 +406,7 @@ void Nms::zoned() {
 void Nms::pulse() {
     if (!detected_) return;
     update_flags();
-    NmscPlayer me = player();
+    HailstonePlayer me = player();
     if (!in_zone(me)) {
         cast_class_ = 0;
         show_book_pending_ = book_opened_by_scribe_ = false;
@@ -432,7 +432,7 @@ void Nms::pulse() {
         }
     }
     // SpellCooldownETA (+0x3cc) zeroed whenever no cast is running: no global spell recovery.
-    if (!me.casting_spell_id) nmsc->clear_spell_recovery(nmsc->host);
+    if (!me.casting_spell_id) host->clear_spell_recovery(host->host);
     // The scribe path (§3.4, MQ2Pulse): the book opened for a scroll sits the player down on the next frame,
     // standing up again closes it, and the click is replayed once its 100 ms are up.
     if (show_book_pending_) {
@@ -443,7 +443,7 @@ void Nms::pulse() {
     }
     if (book_opened_by_scribe_ && me.stand_state != 110) {
         book_opened_by_scribe_ = false;
-        nmsc->close_spell_book(nmsc->host);
+        host->close_spell_book(host->host);
     }
     if (scribe_ && now >= scribe_->due_ms) {
         const PendingScribe p = *scribe_;
@@ -486,8 +486,8 @@ std::optional<std::uint8_t> Nms::spell_level_needed(std::uint32_t spell_id, std:
     // byte, as the memorise port reads it).
     auto orig = [&s](std::uint32_t k) -> std::uint8_t { return s->class_level[(k >= 1 && k <= 16 ? k : 1) - 1]; };
     // g_scribeInProgress, or a type-20 scroll of this spell on the cursor.
-    const NmscPlayer me = player();
-    const auto cursor = item(NmscItemSlot{0, NMSC_SLOT_CURSOR, -1, -1});
+    const HailstonePlayer me = player();
+    const auto cursor = item(HailstoneItemSlot{0, HAILSTONE_SLOT_CURSOR, -1, -1});
     const bool scribe = scribe_in_progress_ || me.scribing_spell_id == spell_id ||
                         (cursor && cursor->item_type == 20 && cursor->scroll_spell == spell_id);
     // The detour reads the spawn's class (PlayerClient +0xeb8), which the Heartbeat's cast spoof may have changed.
@@ -499,7 +499,7 @@ bool Nms::own_begin_cast_line(std::uint32_t spell_id) const {
     if (class_mask() == 0) return false;
     const auto s = spell(spell_id);
     if (!s || s->class_level[kBard - 1] != 0xff) return false;
-    const NmscPlayer me = player();
+    const HailstonePlayer me = player();
     return own_begin_cast_dropped(me.filter_pc_spells, me.in_group != 0, me.in_raid != 0);
 }
 
@@ -530,11 +530,11 @@ void Nms::after_combat_ability(std::uint32_t spell_id, bool used) {
 std::string Nms::combat_effect_label() const {
     // The CCombatAbilityWnd OnProcessFrame vtable hook (§3.3): the label names the first buff whose spell has a
     // timer id >= 20, else "No Effect".
-    const NmscPlayer me = player();
+    const HailstonePlayer me = player();
     for (std::uint32_t i = 0; i < me.buff_slots; ++i) {
-        NmscBuff b{};
+        HailstoneBuff b{};
         b.size = sizeof b;
-        if (!nmsc->get_buff(nmsc->host, i, &b) || b.spell_id == 0) continue;
+        if (!host->get_buff(host->host, i, &b) || b.spell_id == 0) continue;
         if (DisciplineTimers::handles(combat_ability_timer(b.spell_id)))
             if (const auto s = spell(b.spell_id)) return s->name;
     }
@@ -545,9 +545,9 @@ std::string Nms::combat_effect_label() const {
 
 bool Nms::hide_xtarget_slot(int slot) const {
     if (!options.xtarget_hide_pets || slot < 0) return false;
-    NmscXTarget x{};
+    HailstoneXTarget x{};
     x.size = sizeof x;
-    if (!nmsc->get_xtarget(nmsc->host, static_cast<std::uint32_t>(slot), &x)) return false;
+    if (!host->get_xtarget(host->host, static_cast<std::uint32_t>(slot), &x)) return false;
     const auto s = spawn(x.spawn_id);
     std::vector<std::uint32_t> pets;
     for (const auto& p : pets_) pets.push_back(p.spawn_id);
@@ -559,8 +559,8 @@ bool Nms::hide_xtarget_slot(int slot) const {
 // The patch's CInvSlot::HandleRButtonUp detour (§3.4): a right click on a scroll or tome scribes it, opening the
 // spell book and sitting first unless it is a tome or the book is open (the Heartbeat replays the click 100 ms
 // later). The class / level 100 spoof around the original reaches its casting check only.
-bool Nms::item_right_click(const NmscItemSlot& slot) {
-    const NmscPlayer me = player();
+bool Nms::item_right_click(const HailstoneItemSlot& slot) {
+    const HailstonePlayer me = player();
     if (!in_zone(me) || !player_spawned(me)) return false;
     const auto it = item(slot);
     if (!it || !scribe_click(static_cast<std::uint8_t>(it->item_type))) return false;
@@ -577,13 +577,13 @@ bool Nms::item_right_click(const NmscItemSlot& slot) {
     return true;
 }
 
-void Nms::run_scribe(const NmscItemSlot& slot, std::uint8_t target_class) {
+void Nms::run_scribe(const HailstoneItemSlot& slot, std::uint8_t target_class) {
     // NMS_BeginScribeSpoof: class = the target class (when there is one) and level 100 on the spawn and profile,
     // g_scribeInProgress; then the original HandleRButtonUp, then everything back. Of the spoof only the class
     // reaches the original (its casting check's BardCastBard); the item type 31 the tome path also writes is not read
     // there (rof2decomp export CInvSlot.c and the disassembly @0x697250).
     scribe_in_progress_ = true;
-    nmsc->right_click_item(nmsc->host, &slot, target_class);
+    host->right_click_item(host->host, &slot, target_class);
     scribe_in_progress_ = false;
 }
 
@@ -627,11 +627,11 @@ void Nms::send_loot(const LootSend& a) {
 void Nms::ensure_loot_rules() {
     // LoadRulesIfNeeded: the character's itemrules.ini (the patch's <name>_itemrules.ini), read when the character
     // changes. (The patch also rereads while it has no rules, every pulse; "/loot rules" rereads a hand edit.)
-    const NmscPlayer me = player();
+    const HailstonePlayer me = player();
     const std::string who = me.name;
     if (who == loot_rules_path_) return;
     loot_rules_path_ = who;
-    const fs::path dir = who.empty() ? fs::path() : host_dir(nmsc->character_config_dir);
+    const fs::path dir = who.empty() ? fs::path() : host_dir(host->character_config_dir);
     if (dir.empty()) {
         loot.rules().load({});
         return;
@@ -720,12 +720,12 @@ void Nms::petcycle_command() const {
     const std::uint32_t focused = player().pet_id;
     std::size_t i = 0;
     while (i < pets_.size() && pets_[i].spawn_id != focused) ++i;
-    nmsc->set_window_pet(nmsc->host, pets_[i >= pets_.size() ? 0 : (i + 1) % pets_.size()].spawn_id);
+    host->set_window_pet(host->host, pets_[i >= pets_.size() ? 0 : (i + 1) % pets_.size()].spawn_id);
 }
 
 void Nms::petdebug_command() const {
     // MultiPet::DebugSpawns (the spawn pointers are this client's spawn table here).
-    const NmscPlayer me = player();
+    const HailstonePlayer me = player();
     chat(std::format("MultiPet Debug: localID={}  uiPetID={}  havePetList={}  trackedPets={}", me.spawn_id, me.pet_id,
                      have_pet_list_ ? 1 : 0, pets_.size()),
          kConYellow);
@@ -737,17 +737,17 @@ void Nms::petdebug_command() const {
              kConGreen);
     }
     std::size_t count = 0;
-    NmscSpawn s{};
+    HailstoneSpawn s{};
     s.size = sizeof s;
-    for (std::uint32_t id = 0; nmsc->next_spawn(nmsc->host, id, &s); id = s.id) ++count;
+    for (std::uint32_t id = 0; host->next_spawn(host->host, id, &s); id = s.id) ++count;
     chat(std::format("  Total spawns iterated: {}", count), kConGrey);
 }
 
-std::vector<std::string> Nms::who_lines(const NmscWho& who) const {
+std::vector<std::string> Nms::who_lines(const HailstoneWho& who) const {
     // The NMS patch replaces the whole reply with its own lines (FUN_10198eb0, nms_rules.h).
     std::vector<WhoEntry> entries;
     for (std::uint32_t i = 0; i < who.count; ++i) {
-        const NmscWhoEntry* e = NMSC_WHO_ENTRY(&who, i);
+        const HailstoneWhoEntry* e = HAILSTONE_WHO_ENTRY(&who, i);
         entries.push_back({e->name ? e->name : "", e->class_id, e->level, e->race, e->zone_id, e->format,
                            e->rank_string, e->zone_string});
     }
@@ -769,7 +769,7 @@ const char* text_out(std::optional<std::string> s) {
 int h_game_command(const char* handler, const char* args) {
     return g_nms.game_command(handler ? handler : "", args ? args : "") ? 1 : 0;
 }
-int h_who_lines(const NmscWho* who, NmscLineFn add, void* ctx) {
+int h_who_lines(const HailstoneWho* who, HailstoneLineFn add, void* ctx) {
     for (const auto& line : g_nms.who_lines(*who)) add(ctx, line.c_str());
     return 1;
 }
@@ -844,8 +844,8 @@ int h_tracking_allowed(std::uint8_t class_id, std::uint32_t mask, std::uint32_t 
 const char* h_item_level_line(std::uint32_t spell_id) { return text_out(g_nms.item_level_line(spell_id)); }
 const char* h_label(int id, const char* text) { return text_out(g_nms.label(id, text ? text : "")); }
 int h_hide_xtarget_slot(int slot) { return g_nms.hide_xtarget_slot(slot) ? 1 : 0; }
-int h_item_right_click(const NmscItemSlot* slot) { return slot && g_nms.item_right_click(*slot) ? 1 : 0; }
-const char* h_list_level(const NmscItem* item) { return item ? text_out(g_nms.list_level(*item)) : nullptr; }
+int h_item_right_click(const HailstoneItemSlot* slot) { return slot && g_nms.item_right_click(*slot) ? 1 : 0; }
+const char* h_list_level(const HailstoneItem* item) { return item ? text_out(g_nms.list_level(*item)) : nullptr; }
 
 } // namespace
 
@@ -853,18 +853,18 @@ const char* h_list_level(const NmscItem* item) { return item ? text_out(g_nms.li
 
 // ---------------------------------------------------------------- the exports
 
-NMSC_API void InitializePlugin(void) { nms::plugin().initialize(); }
-NMSC_API void ShutdownPlugin(void) { nms::plugin().shutdown(); }
-NMSC_API void OnPulse(void) { nms::plugin().pulse(); }
-NMSC_API void OnZoned(void) { nms::plugin().zoned(); }
-NMSC_API int OnFilterChat(const char* line, uint32_t) { return line && nms::plugin().filter_chat(line) ? 1 : 0; }
-NMSC_API int OnPacket(int stream, int direction, NmscPacket* p) {
+HAILSTONE_API void InitializePlugin(void) { nms::plugin().initialize(); }
+HAILSTONE_API void ShutdownPlugin(void) { nms::plugin().shutdown(); }
+HAILSTONE_API void OnPulse(void) { nms::plugin().pulse(); }
+HAILSTONE_API void OnZoned(void) { nms::plugin().zoned(); }
+HAILSTONE_API int OnFilterChat(const char* line, uint32_t) { return line && nms::plugin().filter_chat(line) ? 1 : 0; }
+HAILSTONE_API int OnPacket(int stream, int direction, HailstonePacket* p) {
     return p && nms::plugin().packet(stream, direction, *p) ? 1 : 0;
 }
 
-NMSC_API const NmscHooks* nmsc_plugin_hooks(void) {
+HAILSTONE_API const HailstoneHooks* hailstone_plugin_hooks(void) {
     using namespace nms;
-    static NmscHooks hooks;
+    static HailstoneHooks hooks;
     std::memset(&hooks, 0, sizeof hooks);
     hooks.size = sizeof hooks;
     hooks.game_command = h_game_command;
@@ -892,3 +892,6 @@ NMSC_API const NmscHooks* nmsc_plugin_hooks(void) {
     hooks.list_level = h_list_level;
     return &hooks;
 }
+
+// Clients up to 0.6 ask for the hook table under its old name.
+HAILSTONE_API const HailstoneHooks* nmsc_plugin_hooks(void) { return hailstone_plugin_hooks(); }
