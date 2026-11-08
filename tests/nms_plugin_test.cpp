@@ -456,7 +456,7 @@ TEST_CASE("NMS plugin windows: Personal Loot, the vault and the waypoints in the
             c.ui_message("VAULTDATA|OPEN|9");
             frames(2);
             CHECK_FALSE(has_window("UI errors"));
-            // Merchant only says; Bank says, then opens the bank window with the player as its banker (FUN_1019a420)
+            // Merchant only says; Bank says, then opens the bank window with the player as its banker (0x1019a420)
             h.ran.clear();
             h.call("vault_say", {plugin::UiValue::string("#vault_merchant")});
             CHECK_FALSE(c.bank());

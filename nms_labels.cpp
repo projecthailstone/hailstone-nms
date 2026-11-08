@@ -1,5 +1,5 @@
 // The NMS plugin's values for the client's windows: the patch's labels, the item display's "Level Needed" line and
-// the merchant's Lvl column (NMS/dinput8.dll; rof2decomp notes/nms-dinput8.md).
+// the merchant's Lvl column (NMS/dinput8.dll).
 
 #include <cstdio>
 
@@ -155,7 +155,7 @@ std::optional<std::string> Nms::label(int type, const std::string& text) const {
 }
 
 std::optional<std::string> Nms::item_level_line(std::uint32_t spell_id) const {
-    // The patch's "Level Needed: CLR(1) ..." line (FUN_101507b0 / ScrubTooltipLevelNeeded), with a class mask;
+    // The patch's "Level Needed: CLR(1) ..." line (0x101507b0 / ScrubTooltipLevelNeeded), with a class mask;
     // without one the stock line.
     const std::uint32_t mask = class_mask();
     if (mask == 0) return std::nullopt;
@@ -166,7 +166,7 @@ std::optional<std::string> Nms::item_level_line(std::uint32_t spell_id) const {
 }
 
 std::optional<std::string> Nms::list_level(const HailstoneItem& item) const {
-    // The NMS patch's merchant Lvl column (CMerchantWnd::UpdateList detour, notes/nms-dinput8.md §3.6): for a spell
+    // The NMS patch's merchant Lvl column (CMerchantWnd::UpdateList detour): for a spell
     // scroll the lowest level over the class mask ("%3d" so the string sort orders it), else over all 16 classes
     // when one can use it, else "--"; nullopt for anything else or without a class mask.
     const std::uint32_t mask = class_mask();
