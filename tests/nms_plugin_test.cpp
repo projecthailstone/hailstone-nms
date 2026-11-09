@@ -586,7 +586,22 @@ TEST_CASE("NMS plugin: the Pet window's #petcmd (the server's zone/gm_commands/p
     CHECK_FALSE(sw->field("hold")->b);
     CHECK(sw->field("assist")->b);
     CHECK_FALSE(sw->field("ghold")->b);
+
+    // The focused pet's switches: OP_PetCommandState (Mob::SetHeld and the like, for focused_pet_id), passed on.
+    CHECK(after->field("switches")->fields.empty()); // nothing lights until the server says
+    CHECK(h.zone_in(nms::encode_pet_command_state(6, 1)));
+    CHECK(h.zone_in(nms::encode_pet_command_state(5, 0)));
+    const auto lit = h.call("pets");
+    REQUIRE(lit);
+    const auto* fs = lit->field("switches");
+    REQUIRE(fs);
+    REQUIRE(fs->field("hold"));
+    CHECK(fs->field("hold")->b);
+    REQUIRE(fs->field("taunt"));
+    CHECK_FALSE(fs->field("taunt")->b);
+    CHECK_FALSE(fs->field("assist")); // the server sends no state for it
     h.hooks.zone(plugin::ZonePhase::Zoned);
+    CHECK(h.call("pets")->field("switches")->field("hold")); // kept: the new zone sends them before OnZoned
     h.ran.clear();
     h.call("pet_swarm_query");
     CHECK(h.ran.size() == 1);

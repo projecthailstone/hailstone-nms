@@ -102,9 +102,11 @@ the pack's window (`lib/pet.lua`) with the server's `#petcmd` added (its `zone/g
   focus, regroup, assist. A button sends "/say #petcmd <command> [on|off] <pets>", and the echo of the line is
   hidden. Swarm pets do not take follow, guard, sit, health, feign, taunt, spell hold or regroup; those are off
   while Swarm is picked;
-- the server tells the client no pet's switch states, so the switches are not lit, except for swarm pets: the
-  server keeps their four (hold, greater hold, focus, assist) and reports them for "#petcmd hold ghold focus assist
-  swarm", which the window sends (hidden, with its answers) the first time Swarm is picked in a zone;
+- the switches light On or Off as the server last said. For All, and for the class of the pet the window shows,
+  that is the pet's own state: the server sends its focused pet's switches (OP_PetCommandState) whenever a
+  `#petcmd` changes them. For swarm pets the server keeps their four (hold, greater hold, focus, assist) and reports
+  them for "#petcmd hold ghold focus assist swarm", which the window sends (hidden, with its answers) the first time
+  Swarm is picked in a zone. Assist, and another class's pets, light nothing: the server sends no state for them;
 - the stock command buttons stay, rolled up: the Modern window folds them under "Pet commands" (`nms.pet.commandsOpen`),
   the Gamepad window shows them in place of the `#petcmd` part ("Command pets" / "Pet commands",
   `nms.pet.stockCommands`). They send the stock OP_PetCommands to the pet in the pet window, and they are what makes

@@ -41,7 +41,7 @@ foreach(f nms_rules nms_packets nms_loot nms_vault nms_waypoints nms_ini nms_opt
   list(APPEND HAILSTONE_NMS_LOGIC ${HAILSTONE_NMS_DIR}/${f}.cpp)
 endforeach()
 set(HAILSTONE_NMS_TESTS)
-foreach(f nms_rules_test nms_plugin_test nms_scribe_test)
+foreach(f nms_rules_test nms_plugin_test nms_scribe_test nms_petcmd_test)
   list(APPEND HAILSTONE_NMS_TESTS ${HAILSTONE_NMS_DIR}/tests/${f}.cpp)
 endforeach()
 

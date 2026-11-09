@@ -30,7 +30,9 @@
 //   pets()                     the Pet window's #petcmd part (nms_petcmd.h): pets (OP_PetList's order) {id, class,
 //                              word (the server's class word, "" for none), className, name ("" before the spawn
 //                              came), hp (percent), focused (the pet window's)}; verbs {word, label, toggle, swarm};
-//                              swarm {hold, ghold, focus, assist} (each absent until the server said)
+//                              swarm {hold, ghold, focus, assist} (each absent until the server said); switches
+//                              {taunt, hold, ghold, spellhold, focus, regroup}: the server's focused pet's
+//                              (OP_PetCommandState; each absent until the server said)
 //   pet_command(verb, state, target)   "/say #petcmd <verb> [on|off] <target>" (all, swarm or a class word); a word
 //                              the server does not take is refused; the echo is hidden
 //   pet_swarm_query()          asks the swarm pets' settings once a zone (the answers are hidden)
@@ -454,6 +456,11 @@ int f_pets(void*, const HailstoneArgs*, HailstoneOut* o) {
     out.key("swarm");
     out.table();
     for (const auto& [name, on] : n->pet_commands.swarm()) out.field_flag(name.c_str(), on);
+    out.end();
+    out.key("switches"); // the server's focused pet's, by toggle verb (only those it said)
+    out.table();
+    for (const PetVerb& v : pet_verbs())
+        if (auto on = n->pet_commands.focused(v.word)) out.field_flag(v.word, *on);
     out.end();
     out.end();
     return 1;

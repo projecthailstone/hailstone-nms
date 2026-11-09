@@ -4,8 +4,10 @@
 -- rolled up at first):
 --   the pets to command: All, the classes that summoned the pets OP_PetList lists, or Swarm
 --   a button for each of the server's commands (A sends "#petcmd <command> <pets>")
---   its switches (taunt, hold, ...): "Turn on" / "Turn off" picks what A sends. The server does not say which are
---   on, except for swarm pets (asked once a zone): theirs show ON / OFF.
+--   its switches (taunt, hold, ...): "Turn on" / "Turn off" picks what A sends. Each shows ON / OFF as the server
+--   last said: for swarm pets their saved settings (asked once a zone); for All and for the class of the pet the
+--   window shows, that pet's (OP_PetCommandState, the focused pet's; with All the other pets may differ). Another
+--   class's pets: the server does not say, so nothing shows.
 -- On another server, or before the plugin has seen this one, the pack's own window draws (ui.base_window).
 local P = dofile("lib/pet.lua")
 local T = dofile("lib/theme.lua")
@@ -33,6 +35,17 @@ local function targets(st)
 end
 
 -- A row of buttons, `cols` across, from the cursor: draw(k, item, width) per item.
+local NONE = {}
+
+-- Whether the focused pet's switches (st.switches) stand for the pets `word` names: All, or the focused pet's class.
+local function switches_for(st, word)
+  if word == "all" then return true end
+  for _, p in ipairs(st.pets) do
+    if p.focused then return p.word ~= "" and p.word == word end
+  end
+  return false
+end
+
 local function grid(items, width, cols, draw)
   local gap = T.px(10)
   local bw = (width - (cols - 1) * gap) / cols
@@ -55,6 +68,7 @@ local function petcmd(st, x0, y, width)
   end)
   local swarm = target == "swarm"
   if swarm then nms.pet_swarm_query() end
+  local states = swarm and st.swarm or (switches_for(st, target) and st.switches) or NONE
   local simple, toggles = {}, {}
   for _, v in ipairs(st.verbs) do
     if v.toggle then toggles[#toggles + 1] = v else simple[#simple + 1] = v end
@@ -74,7 +88,7 @@ local function petcmd(st, x0, y, width)
   grid(toggles, width, 4, function(_, v, bw)
     local ok = not swarm or v.swarm
     local clicked, _, cx0, cy0, cx1 = T.button("##nmsps" .. v.word, v.label, bw, T.px(56), { disabled = not ok }, pad)
-    local known = swarm and st.swarm[v.word]
+    local known = states[v.word]
     if known ~= nil then
       T.font(15)
       T.textIn(cx0, cy0 + T.px(4), cx1 - T.px(10), cy0 + T.px(22), known and "ON" or "OFF", C.dim, 1)
