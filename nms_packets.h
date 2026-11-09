@@ -35,7 +35,7 @@ inline constexpr std::uint16_t ServerAuthStats = 0x1338, SkillTimers = 0x1339, M
 inline constexpr std::uint16_t ClientReport = 0x140f;
 // Stock RoF2.
 inline constexpr std::uint16_t World_Client_CRC1 = 0x0f13, World_Client_CRC2 = 0x4b8d, ZoneServerInfo = 0x4c44,
-                               DisciplineTimer = 0x6989, Weblink = 0x6f4b;
+                               DisciplineTimer = 0x6989, Weblink = 0x6f4b, PetCommandState = 0x1dc8;
 } // namespace op
 
 // ---- 0x140f, both directions ----
@@ -113,6 +113,12 @@ Packet encode_skill_timers(const SkillTimers& v); // server direction, for tests
 
 // ---- OP_DisciplineTimer, zone -> client: {u32 id, u32 seconds left, u32}; only the first two are read ----
 std::optional<std::pair<std::uint32_t, std::uint32_t>> decode_discipline_timer(Bytes p);
+
+// ---- OP_PetCommandState, zone -> client: {u32 button (EQEmu PET_BUTTON_*), u32 state} ----
+// Client::SetPetCommandState: a switch of the server's focused pet (its focused_pet_id) changed, or the pet became
+// focused (zone/pets.cpp sends them all then).
+std::optional<std::pair<std::uint32_t, std::uint32_t>> decode_pet_command_state(Bytes p);
+Packet encode_pet_command_state(std::uint32_t button, std::uint32_t state); // server direction, for tests
 
 // ---- OP_WaypointList 0x1402, zone -> client (zone/nms_waypoints.cpp SendWaypointList, packed) ----
 // {bool group_enabled, expedition_enabled, group_selected, force_show, autoconfirm_selected; u32 count;

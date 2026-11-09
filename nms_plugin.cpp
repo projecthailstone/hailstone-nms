@@ -274,6 +274,7 @@ void Nms::zone_server_changed() {
     cast_class_ = 0;
     waypoints.reset();
     loot.reset(false); // the Personal Loot window hides and says Hello again in the new zone
+    pet_commands.zone_changed();
 }
 
 // ---------------------------------------------------------------- packets
@@ -370,6 +371,11 @@ bool Nms::zone_packet(HailstonePacket& p, std::int64_t now) {
         // now + seconds). Passed on.
         if (auto t = decode_discipline_timer(data); t && DisciplineTimers::handles(static_cast<std::int32_t>(t->first)))
             disc_timers_.set(static_cast<std::int32_t>(t->first), static_cast<std::uint32_t>(std::time(nullptr)) + t->second);
+        return false;
+    case op::PetCommandState:
+        // The focused pet's switches, which the Pet window's #petcmd On / Off buttons light by. Passed on: the core's
+        // stock buttons light by it too.
+        if (auto st = decode_pet_command_state(data)) pet_commands.on_button_state(st->first, st->second != 0);
         return false;
     case op::MulticlassCharSelect:
         // {u32 count; u32 mask[count]} by character select slot; swallowed. The NMS world does not send it (the masks

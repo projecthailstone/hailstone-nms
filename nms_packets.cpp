@@ -204,6 +204,20 @@ std::optional<std::pair<std::uint32_t, std::uint32_t>> decode_discipline_timer(B
     });
 }
 
+std::optional<std::pair<std::uint32_t, std::uint32_t>> decode_pet_command_state(Bytes p) {
+    return decode_with(p, [](ByteReader& r) {
+        const std::uint32_t button = r.le<std::uint32_t>();
+        return std::pair<std::uint32_t, std::uint32_t>{button, r.le<std::uint32_t>()};
+    });
+}
+
+Packet encode_pet_command_state(std::uint32_t button, std::uint32_t state) {
+    ByteWriter w;
+    w.le<std::uint32_t>(button);
+    w.le<std::uint32_t>(state);
+    return packet(op::PetCommandState, std::move(w));
+}
+
 std::optional<WaypointList> decode_waypoint_list(Bytes p) {
     return decode_with(p, [](ByteReader& r) {
         WaypointList v;

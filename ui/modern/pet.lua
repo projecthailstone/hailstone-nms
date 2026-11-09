@@ -1,9 +1,11 @@
 -- Pet (NMS): covers the pack's Pet window on an NMS server. The pack's window (lib/pet.lua) with the server's
 -- #petcmd added above the stock command buttons, which fold under "Pet commands" (folded at first): the pets to
 -- command (All, the classes that summoned the pets OP_PetList lists, or Swarm) and a button for each of the server's
--- commands, On / Off for its switches. The server does not say which switches are on, except for swarm pets (asked
--- once a zone): those light. On another server, or before the plugin has seen this one, the pack's own window
--- draws (ui.base_window).
+-- commands, On / Off for its switches. The switches light as the server last said: for swarm pets their saved
+-- settings (asked once a zone); for All and for the class of the pet the window shows, that pet's (the server sends
+-- the focused pet's switches, OP_PetCommandState; with All the other pets may differ). Another class's pets: the
+-- server does not say, so nothing lights. On another server, or before the plugin has seen this one, the pack's own
+-- window draws (ui.base_window).
 local pet = dofile("lib/pet.lua")
 local hud = dofile("lib/hud.lua")
 local T = hud.T
@@ -25,6 +27,17 @@ local function targets(st)
   end
   list[#list + 1] = { word = "swarm", label = "Swarm" }
   return list
+end
+
+local NONE = {}
+
+-- Whether the focused pet's switches (st.switches) stand for the pets `word` names: All, or the focused pet's class.
+local function switches_for(st, word)
+  if word == "all" then return true end
+  for _, p in ipairs(st.pets) do
+    if p.focused then return p.word ~= "" and p.word == word end
+  end
+  return false
 end
 
 local function split(st)
@@ -63,6 +76,7 @@ local function draw(st, list, x, y, w, s)
   y = y + math.ceil(#list / TARGETS_PER_ROW) * ROW * s
   local swarm = target == "swarm"
   if swarm then nms.pet_swarm_query() end
+  local states = swarm and st.swarm or (switches_for(st, target) and st.switches) or NONE
   local simple, toggles = split(st)
   -- the commands
   local vw = (inner - (VERBS_PER_ROW - 1) * gap) / VERBS_PER_ROW
@@ -83,7 +97,7 @@ local function draw(st, list, x, y, w, s)
     local col, row = (k - 1) % TOGGLES_PER_ROW, (k - 1) // TOGGLES_PER_ROW
     local cx, cy = x + pad + col * (cw + gap), y + row * ROW * s
     local ok = not swarm or v.swarm
-    local known = swarm and st.swarm[v.word]
+    local known = states[v.word]
     local _, th = T.TextSize("Ag", T.font.tiny)
     T.Text(cx, cy + (22 * s - th) / 2, T.Fit(v.label, cw - 2 * bw - 8 * s, T.font.tiny), ok and C.text or C.faint, T.font.tiny)
     for i, state in ipairs({ "on", "off" }) do

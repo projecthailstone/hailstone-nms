@@ -36,6 +36,18 @@ const PetVerb* find_pet_verb(std::string_view word) {
     return nullptr;
 }
 
+int pet_verb_button(std::string_view word) {
+    // zone/common.h PET_BUTTON_*, set by the setters #petcmd's DoPetCommand reaches (Mob::SetHeld, SetGHeld,
+    // SetFocused, SetNoCast, SetPetRegroup; NPC::DoPetCommandTaunt) when the pet is the owner's focused_pet_id.
+    if (word == "regroup") return 2;
+    if (word == "taunt") return 5;
+    if (word == "hold") return 6;
+    if (word == "ghold") return 7;
+    if (word == "focus") return 8;
+    if (word == "spellhold") return 9;
+    return -1;
+}
+
 const char* pet_class_name(std::uint32_t id) {
     static constexpr const char* kNames[] = {"Warrior", "Cleric", "Paladin", "Ranger", "Shadow Knight", "Druid", "Monk",
                                              "Bard", "Rogue", "Shaman", "Necromancer", "Wizard", "Magician",
@@ -103,6 +115,15 @@ bool PetCommands::on_chat(std::string_view text) {
         }
     }
     return false;
+}
+
+void PetCommands::on_button_state(std::uint32_t button, bool on) {
+    if (button < buttons_.size()) buttons_[button] = on;
+}
+
+std::optional<bool> PetCommands::focused(std::string_view verb) const {
+    const int b = pet_verb_button(verb);
+    return b < 0 ? std::nullopt : buttons_[static_cast<std::size_t>(b)];
 }
 
 void PetCommands::zoned() {
