@@ -37,13 +37,16 @@ cmake --build build       # build/nms/: the library and ui/
 ## Releasing
 
 ```sh
-tools/release.sh 1.0.0             # builds linux-x64 and windows-x64, packs and signs into release/v1.0.0/
+tools/release.sh 1.0.0             # builds linux-x64 and windows-x64, takes macos-arm64; packs and signs
+                                   # into release/v1.0.0/
 tools/release.sh 1.0.0 --publish   # the same, then a GitHub release of this repository
 ```
 
 The script's header lists what it needs: a client checkout with `hailstone_sign` built, the add-on key, Docker with
-the `hailstone-linux-build:24.04` image, and the clang-cl + xwin toolchain. Keep signing with the same key: a
-player's client pins the first key it sees and refuses an update signed with another.
+the `hailstone-linux-build:24.04` image, and the clang-cl + xwin toolchain. The macOS arm64 library comes from
+GitHub's Apple Silicon runner: push the commit, run the macOS arm64 workflow on it (`gh workflow run macos.yml`), and
+the script downloads that run's library. Keep signing with the same key: a player's client pins the first key it sees
+and refuses an update signed with another.
 
 The add-on manager reads releases from public repositories only. While this repository is private, the Add-ons link
 does not work. A player then copies a package's folder into `plugins/nms/` by hand, or the server ships the plugin.

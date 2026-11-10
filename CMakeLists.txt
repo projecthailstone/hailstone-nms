@@ -59,6 +59,10 @@ endif()
 if(MSVC)
   target_compile_definitions(nms PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
+if(APPLE)
+  # The client loads a .dylib on macOS (its docs/plugins.md); CMake names a MODULE .so there.
+  set_target_properties(nms PROPERTIES SUFFIX ".dylib")
+endif()
 add_custom_command(TARGET nms POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E rm -rf $<TARGET_FILE_DIR:nms>/ui
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${HAILSTONE_NMS_DIR}/ui $<TARGET_FILE_DIR:nms>/ui)

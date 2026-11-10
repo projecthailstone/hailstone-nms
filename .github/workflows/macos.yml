@@ -1,0 +1,57 @@
+# Builds the plugin's macOS arm64 library on GitHub's Apple Silicon runner, since it cannot be built from Linux. Run
+# it by hand (Actions > macOS arm64 > Run workflow) on the commit to release; tools/release.sh then downloads the
+# artifact of the run for that commit as the add-on's macos-arm64 package. Only the library and ui/ are kept, as on the
+# other platforms. The plugin's tests run with the client's on Linux and Windows (this build has none).
+name: macOS arm64
+
+on:
+  workflow_dispatch:
+    inputs:
+      client_ref:
+        description: hailstone-client branch, tag or commit whose sdk/ to build against
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      NAME: nms
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: plugin
+      - uses: actions/checkout@v4
+        with:
+          repository: projecthailstone/hailstone-client
+          ref: ${{ inputs.client_ref }}
+          path: client
+          sparse-checkout: sdk
+      - name: Install tools
+        run: brew install ninja
+      - name: Build
+        # 13.3 is the client's deployment target (its CMakeLists.txt), so the library loads wherever the client does.
+        run: |
+          cmake -S plugin -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DHAILSTONE_CLIENT_DIR="$PWD/client" \
+                -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=13.3
+          cmake --build build
+      - name: Strip and sign ad hoc
+        # Apple Silicon loads only signed code; strip leaves the linker's ad-hoc signature invalid, so sign again.
+        run: |
+          lib="build/$NAME/$NAME.dylib"
+          strip -x "$lib"
+          codesign --force --sign - "$lib"
+          codesign --verify --verbose "$lib"
+          file "$lib"
+          otool -L "$lib"
+          if otool -L "$lib" | tail -n +2 | grep -v -E '^\s*(/usr/lib/|/System/)'; then
+            echo "the library needs something outside the system" >&2; exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.NAME }}-macos-arm64
+          path: build/${{ env.NAME }}
+          if-no-files-found: error

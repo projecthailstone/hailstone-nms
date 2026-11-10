@@ -11,12 +11,15 @@
 # secret half ($ADDON_KEY, default ~/.config/hailstone-release/addon-key.secret: keep it off GitHub, and keep using
 # the same one, since a player's client refuses an update signed with another key); for linux-x64, Docker and the
 # hailstone-linux-build:24.04 image (Ubuntu 24.04, so the library loads on its glibc and libstdc++); for windows-x64,
-# the client's clang-cl + xwin toolchain (its docs/ci.md "Windows builds from Linux"). $JOBS caps the parallel jobs.
+# the client's clang-cl + xwin toolchain (its docs/ci.md "Windows builds from Linux"); for macos-arm64, a successful
+# run of .github/workflows/macos.yml on the commit being released (macOS libraries cannot be built from Linux:
+# gh workflow run macos.yml -R $SOURCE_REPO, after pushing it), which gh downloads. $JOBS caps the parallel jobs.
 set -euo pipefail
 
 # ---- this plugin
 NAME=nms
 CAPS=read,commands,actions,move,chat,events,ui,packets,extend,login # docs/nms.md "What it needs"
+SOURCE_REPO=projecthailstone/hailstone-nms # where the commit and its macOS run are
 RELEASE_REPO=projecthailstone/hailstone-nms
 DESCRIPTION="The NMS server's client features: personal loot, the vault, waypoints, pet commands. Off on other servers."
 AUTHOR="Project Hailstone"
@@ -43,8 +46,17 @@ if [ -n "$(git -C "$here" status --porcelain)" ]; then
   exit 1
 fi
 
+# macos-arm64 first, so a missing run stops the release before the long builds.
+head=$(git -C "$here" rev-parse HEAD)
+run=$(gh run list -R "$SOURCE_REPO" -w macos.yml -c "$head" -s success -L 1 --json databaseId -q '.[0].databaseId')
+if [ -z "$run" ]; then
+  echo "no successful macOS arm64 run for $head: push it, then gh workflow run macos.yml -R $SOURCE_REPO" >&2
+  exit 1
+fi
+rm -rf "$here/build-linux" "$here/build-windows" "$here/build-macos" "$out"
+gh run download "$run" -R "$SOURCE_REPO" -n "$NAME-macos-arm64" -D "$here/build-macos/$NAME"
+
 # linux-x64, in the Ubuntu 24.04 image; the build folder belongs to the caller, not root.
-rm -rf "$here/build-linux" "$here/build-windows" "$out"
 docker run --rm --cpus "$jobs" -u "$(id -u):$(id -g)" -v "$here:/src" -v "$client:/client:ro" "$image" sh -c "
   cmake -S /src -B /src/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release -DHAILSTONE_CLIENT_DIR=/client &&
   cmake --build /src/build-linux -j $jobs &&
@@ -57,6 +69,7 @@ cmake --build "$here/build-windows" -j "$jobs"
 
 python3 "$client/tools/make_addon.py" --name "$NAME" --kind plugin --version "$version" --caps "$CAPS" \
     --platform "linux-x64=$here/build-linux/$NAME" --platform "windows-x64=$here/build-windows/$NAME" \
+    --platform "macos-arm64=$here/build-macos/$NAME" \
     --author "$AUTHOR" --description "$DESCRIPTION" --min-client "$MIN_CLIENT" \
     --notes "https://github.com/$RELEASE_REPO/releases/tag/$tag" --out "$out"
 "$sign" sign "$key" "$out/hailstone-addon.txt"
