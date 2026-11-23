@@ -385,9 +385,7 @@ TEST_CASE("NMS plugin windows: Personal Loot, the vault and the waypoints in the
 
         ImGuiContext* ctx = ImGui::CreateContext();
         ImGui::GetIO().IniFilename = nullptr;
-        unsigned char* px = nullptr;
-        int w = 0, ht = 0;
-        ImGui::GetIO().Fonts->GetTexDataAsRGBA32(&px, &w, &ht);
+        ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_RendererHasTextures; // 1.92: the atlas is built by NewFrame
         {
             ui::ChatView view;
             app::EqHost host;
@@ -636,9 +634,7 @@ TEST_CASE("NMS plugin windows: the Pet window covers the pack's on an NMS server
 
         ImGuiContext* ctx = ImGui::CreateContext();
         ImGui::GetIO().IniFilename = nullptr;
-        unsigned char* px = nullptr;
-        int tw = 0, th = 0;
-        ImGui::GetIO().Fonts->GetTexDataAsRGBA32(&px, &tw, &th);
+        ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_RendererHasTextures; // 1.92: the atlas is built by NewFrame
         {
             ui::ChatView view;
             app::EqHost host;
